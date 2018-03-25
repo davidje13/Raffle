@@ -60,8 +60,9 @@ describe('Raffle Result', () => {
 	beforeEach((done) => {
 		Raffle.generator = (tickets, prizes, pCutoff, callback) => {
 			callback([
-				{p: 0.5, value: 0},
-				{p: 1.0, value: 1},
+				{p: 0.2, value: 0},
+				{p: 0.6, value: 1},
+				{p: 1.0, value: 2},
 			]);
 		};
 		const raffle = new Raffle({audience: 7});
@@ -79,27 +80,28 @@ describe('Raffle Result', () => {
 
 	describe('max_value', () => {
 		it('returns the highest possible prize value', () => {
-			expect(result.max_value()).toEqual(1);
+			expect(result.max_value()).toEqual(2);
 		});
 	});
 
 	describe('exact_probability', () => {
 		it('returns the probability of getting a specific prize value', () => {
-			expect(result.exact_probability(0)).toEqual(0.5);
-			expect(result.exact_probability(1)).toEqual(0.5);
+			expect(result.exact_probability(0)).toBeNear(0.2, 1e-6);
+			expect(result.exact_probability(1)).toBeNear(0.4, 1e-6);
+			expect(result.exact_probability(2)).toBeNear(0.4, 1e-6);
 		});
 
 		it('returns zero for impossible values', () => {
 			expect(result.exact_probability(-1)).toEqual(0);
 			expect(result.exact_probability(0.5)).toEqual(0);
-			expect(result.exact_probability(2)).toEqual(0);
+			expect(result.exact_probability(3)).toEqual(0);
 		});
 	});
 
 	describe('range_probability', () => {
 		it('returns the probability of low <= value < high', () => {
-			expect(result.range_probability(-100, 0.5)).toEqual(0.5);
-			expect(result.range_probability(0.5, 100)).toEqual(0.5);
+			expect(result.range_probability(-100, 0.5)).toBeNear(0.2, 1e-6);
+			expect(result.range_probability(0.5, 100)).toBeNear(0.8, 1e-6);
 		});
 
 		it('returns zero for ranges containing no outcomes', () => {
@@ -107,23 +109,50 @@ describe('Raffle Result', () => {
 		});
 
 		it('is inclusive of the lower bound', () => {
-			expect(result.range_probability(0, 0.1)).toEqual(0.5);
-			expect(result.range_probability(1, 1.1)).toEqual(0.5);
+			expect(result.range_probability(0, 0.1)).toBeNear(0.2, 1e-6);
+			expect(result.range_probability(1, 1.1)).toBeNear(0.4, 1e-6);
+			expect(result.range_probability(2, 2.1)).toBeNear(0.4, 1e-6);
 		});
 
 		it('is exclusive of the upper bound', () => {
 			expect(result.range_probability(-0.1, 0)).toEqual(0);
 			expect(result.range_probability(0.9, 1)).toEqual(0);
+			expect(result.range_probability(1.9, 2)).toEqual(0);
 		});
 
 		it('returns 1 if the entire range is covered', () => {
 			expect(result.range_probability(-100, 100)).toEqual(1);
-			expect(result.range_probability(0, 1.1)).toEqual(1);
+			expect(result.range_probability(0, 2.1)).toEqual(1);
 		});
 
 		it('returns zero for ranges outside the possible values', () => {
 			expect(result.range_probability(-100, -50)).toEqual(0);
 			expect(result.range_probability(50, 100)).toEqual(0);
+		});
+	});
+
+	describe('percentile', () => {
+		it('returns the winnings of the nth luckiest person', () => {
+			expect(result.percentile(0)).toEqual(0);
+			expect(result.percentile(19)).toEqual(0);
+			expect(result.percentile(21)).toEqual(1);
+			expect(result.percentile(25)).toEqual(1);
+			expect(result.percentile(50)).toEqual(1);
+			expect(result.percentile(59)).toEqual(1);
+			expect(result.percentile(61)).toEqual(2);
+			expect(result.percentile(75)).toEqual(2);
+			expect(result.percentile(100)).toEqual(2);
+		});
+
+		it('caps extreme values', () => {
+			expect(result.percentile(-1)).toEqual(0);
+			expect(result.percentile(101)).toEqual(2);
+		});
+	});
+
+	describe('median', () => {
+		it('returns the 50th percentile', () => {
+			expect(result.median()).toEqual(1);
 		});
 	});
 });

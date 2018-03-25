@@ -64,6 +64,7 @@ raffle.enter(5).then((results) => {
     'Prize range: £' + results.min_value().toFixed(2) +
     ' - £' + results.max_value().toFixed(2)
   );
+  console.log('Median winnings: £' + results.median());
 
   for(let i = results.min_value(); i <= results.max_value(); ++ i) {
     const pE = results.exact_probability(i);

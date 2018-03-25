@@ -30,8 +30,8 @@
 		constructor(tickets, cumulativeP) {
 			this.n = tickets;
 			this.cumulativeP = cumulativeP;
-			this.pmin = this.cumulativeP[0].value;
-			this.pmax = this.cumulativeP[this.cumulativeP.length - 1].value;
+			this.vmin = this.cumulativeP[0].value;
+			this.vmax = this.cumulativeP[this.cumulativeP.length - 1].value;
 		}
 
 		tickets() {
@@ -39,18 +39,18 @@
 		}
 
 		min_value() {
-			return this.pmin;
+			return this.vmin;
 		}
 
 		max_value() {
-			return this.pmax;
+			return this.vmax;
 		}
 
 		p_below(x) {
-			if(x <= this.pmin) {
+			if(x <= this.vmin) {
 				return 0;
 			}
-			if(x > this.pmax) {
+			if(x > this.vmax) {
 				return 1;
 			}
 			const index = find_last_binary(
@@ -61,7 +61,7 @@
 		}
 
 		exact_probability(x) {
-			if(x < this.pmin || x > this.pmax) {
+			if(x < this.vmin || x > this.vmax) {
 				return 0;
 			}
 			const index = find_last_binary(
@@ -82,6 +82,25 @@
 		range_probability(low, high) {
 			// Returns p(low <= v < high)
 			return clamp(this.p_below(high) - this.p_below(low), 0, 1);
+		}
+
+		percentile(percent) {
+			const frac = percent * 0.01;
+			if(frac <= this.cumulativeP[0].p) {
+				return this.vmin;
+			}
+			if(frac >= 1) {
+				return this.vmax;
+			}
+			const index = find_last_binary(
+				this.cumulativeP,
+				({p}) => (p < frac)
+			) + 1;
+			return this.cumulativeP[index].value;
+		}
+
+		median() {
+			return this.percentile(50);
 		}
 	}
 
