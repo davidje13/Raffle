@@ -1,0 +1,61 @@
+<html lang="en">
+<head>
+<script src="src/Raffle.js"></script>
+<script>
+function add_message(m) {
+	const t = document.createTextNode(m);
+	const d = document.createElement('div');
+	d.appendChild(t);
+	document.body.appendChild(d);
+	return d;
+}
+
+window.addEventListener('load', () => {
+	// NS&I premium bonds
+	const prizes = [
+		{value: 1000000, count:       2},
+		{value:  100000, count:       5},
+		{value:   50000, count:       8},
+		{value:   25000, count:      19},
+		{value:   10000, count:      46},
+		{value:    5000, count:      92},
+		{value:    1000, count:    1717},
+		{value:     500, count:    5151},
+		{value:     100, count:   23554},
+		{value:      50, count:   23554},
+		{value:      25, count: 2950583},
+	];
+	const fixedOdds = 24500; // 1 in x
+	const raffle = new Raffle({
+		audience: prizes.reduce((a, {count}) => a + count, 0) * fixedOdds,
+		prizes,
+		pCutoff: 1e-10,
+	});
+	raffle.enter(5000).then((results) => {
+		add_message('Tickets: ' + results.tickets());
+		add_message('Audience: ' + raffle.audience());
+		add_message(
+			'Prize range: £' + results.min_value().toFixed(2) +
+			' - £' + results.max_value().toFixed(2)
+		);
+
+		for(let i = results.min_value(); i <= results.max_value(); ++ i) {
+			const pE = results.exact_probability(i);
+			if(pE < 0.00000001) {
+				continue;
+			}
+			const pR = results.range_probability(i, Number.POSITIVE_INFINITY);
+			add_message(
+				'= £' + i.toFixed(2) + ': ' +
+				(pE * 100).toFixed(4) + '%' +
+				' >= £' + i.toFixed(2) + ': ' +
+				(pR * 100).toFixed(4) + '%'
+			);
+		}
+	});
+});
+</script>
+</head>
+<body>
+</body>
+</html>

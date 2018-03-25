@@ -1,0 +1,31 @@
+{
+  "name": "raffle",
+  "version": "1.0.0",
+  "description": "Calculates odds of winning in raffles",
+  "homepage": "https://github.com/davidje13/Raffle",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davidje13/Raffle.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidje13/Raffle/issues"
+  },
+  "license": "LGPL-3.0",
+  "files": [
+    "Raffle.js",
+    "raffle-worker.js"
+  ],
+  "main": "Raffle",
+  "scripts": {
+    "check": "npm run lint && npm run test",
+    "lint": "node_modules/.bin/eslint . --ext .js --ignore-pattern '!.eslintrc.js'",
+    "start": "node_modules/.bin/http-server",
+    "test": "node_modules/.bin/jasmine"
+  },
+  "devDependencies": {
+    "eslint": "^4.19.1",
+    "eslint-plugin-jasmine": "^2.9.3",
+    "http-server": "^0.10.0",
+    "jasmine": "^3.1.0"
+  }
+}
