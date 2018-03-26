@@ -199,8 +199,8 @@ describe('extract_cumulative_probability', () => {
 		const {cumulativeP} = extract_cumulative_probability(pMap);
 
 		expect(cumulativeP).toEqual([
-			{p: 0.5, value: 0},
-			{p: 1.0, value: 1},
+			{cp: 0.5, p: 0.5, value: 0},
+			{cp: 1.0, p: 0.5, value: 1},
 		]);
 	});
 
@@ -212,8 +212,8 @@ describe('extract_cumulative_probability', () => {
 		const {cumulativeP} = extract_cumulative_probability(pMap);
 
 		expect(cumulativeP).toEqual([
-			{p: 0.5, value: 0},
-			{p: 1.0, value: 1},
+			{cp: 0.5, p: 0.5, value: 0},
+			{cp: 1.0, p: 0.5, value: 1},
 		]);
 	});
 
@@ -226,8 +226,8 @@ describe('extract_cumulative_probability', () => {
 
 		expect(totalP).toEqual(2);
 		expect(cumulativeP).toEqual([
-			{p: 0.5, value: 0},
-			{p: 1.0, value: 1},
+			{cp: 0.5, p: 0.5, value: 0},
+			{cp: 1.0, p: 0.5, value: 1},
 		]);
 	});
 });
@@ -254,8 +254,8 @@ describe('message_listener', () => {
 
 		expect(post.fn).toHaveBeenCalledWith({
 			cumulativeP: [
-				{p: 0.875, value: 0},
-				{p: 1.000, value: 1},
+				{cp: 0.875, p: 0.875, value: 0},
+				{cp: 1.000, p: 0.125, value: 1},
 			],
 			normalisation: 1,
 			type: 'result',

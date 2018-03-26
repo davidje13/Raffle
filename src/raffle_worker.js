@@ -212,17 +212,20 @@ function calculate_probability_map(prizes, tickets, pCutoff) {
 
 function extract_cumulative_probability(pMap) {
 	const cumulativeP = Array.from(pMap.entries())
-		.map(([value, p]) => ({p, value}))
+		.map(([value, p]) => ({cp: 0, p, value}))
 		.sort((a, b) => (a.value - b.value));
 
 	let totalP = 0;
 	for(let i = 0; i < cumulativeP.length; ++ i) {
 		totalP += cumulativeP[i].p;
-		cumulativeP[i].p = totalP;
+		cumulativeP[i].cp = totalP;
 	}
 
 	// Normalise to [0 1] to correct for numeric errors
-	cumulativeP.forEach((x) => (x.p /= totalP));
+	cumulativeP.forEach((x) => {
+		x.cp /= totalP;
+		x.p /= totalP;
+	});
 
 	return {cumulativeP, totalP};
 }

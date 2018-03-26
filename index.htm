@@ -24,6 +24,10 @@ function money(v) {
 	return '\u00A3' + v.toFixed(2);
 }
 
+function apr(monthly, capital) {
+	return (Math.pow(1 + monthly / capital, 12) - 1) * 100;
+}
+
 window.addEventListener('load', () => {
 	// NS&I premium bonds
 	const prizes = [
@@ -55,12 +59,22 @@ window.addEventListener('load', () => {
 
 	Promise.all(games).then((allResults) => {
 		for(const results of allResults) {
-			add_message('Tickets: ' + results.tickets(), 'head');
+			const tickets = results.tickets();
+			const mean = results.mean();
+			const median = results.median();
+			add_message('Tickets: ' + tickets, 'head');
+			add_message(
+				'Mean: ' + money(mean)
+				+ ' (' + apr(mean, tickets).toFixed(3) + '% APR)'
+			);
+			add_message(
+				'Median: ' + money(median)
+			);
 			add_message(
 				'Percentiles: '
 				+ '0th = ' + money(results.percentile(0)) + ', '
 				+ '25th = ' + money(results.percentile(25)) + ', '
-				+ 'median = ' + money(results.median()) + ', '
+				+ '50th = ' + money(results.percentile(50)) + ', '
 				+ '75th = ' + money(results.percentile(75)) + ', '
 				+ '100th = ' + money(results.percentile(100))
 			);
@@ -68,7 +82,7 @@ window.addEventListener('load', () => {
 
 		const results = allResults[allResults.length - 1];
 		add_message('Breakdown for tickets: ' + results.tickets(), 'head');
-		for(let i = results.min_value(); i <= results.max_value(); ++ i) {
+		for(let i = results.min(); i <= results.max(); ++ i) {
 			const pE = results.exact_probability(i);
 			if(pE < 0.00000001) {
 				continue;

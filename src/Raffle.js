@@ -38,11 +38,11 @@
 			return this.n;
 		}
 
-		min_value() {
+		min() {
 			return this.vmin;
 		}
 
-		max_value() {
+		max() {
 			return this.vmax;
 		}
 
@@ -57,7 +57,7 @@
 				this.cumulativeP,
 				({value}) => (value < x)
 			);
-			return this.cumulativeP[index].p;
+			return this.cumulativeP[index].cp;
 		}
 
 		exact_probability(x) {
@@ -72,11 +72,7 @@
 			if(cur.value !== x) {
 				return 0;
 			}
-			if(index > 0) {
-				return clamp(cur.p - this.cumulativeP[index - 1].p, 0, 1);
-			} else {
-				return cur.p;
-			}
+			return cur.p;
 		}
 
 		range_probability(low, high) {
@@ -86,7 +82,7 @@
 
 		percentile(percent) {
 			const frac = percent * 0.01;
-			if(frac <= this.cumulativeP[0].p) {
+			if(frac <= this.cumulativeP[0].cp) {
 				return this.vmin;
 			}
 			if(frac >= 1) {
@@ -94,9 +90,13 @@
 			}
 			const index = find_last_binary(
 				this.cumulativeP,
-				({p}) => (p < frac)
+				({cp}) => (cp < frac)
 			) + 1;
 			return this.cumulativeP[index].value;
+		}
+
+		mean() {
+			return this.cumulativeP.reduce((v, {p, value}) => v + p * value, 0);
 		}
 
 		median() {

@@ -61,12 +61,12 @@ raffle.enter(5).then((results) => {
   console.log('Tickets: ' + results.tickets());
   console.log('Audience: ' + raffle.audience());
   console.log(
-    'Prize range: £' + results.min_value().toFixed(2) +
-    ' - £' + results.max_value().toFixed(2)
+    'Prize range: £' + results.min().toFixed(2) +
+    ' - £' + results.max().toFixed(2)
   );
   console.log('Median winnings: £' + results.median());
 
-  for(let i = results.min_value(); i <= results.max_value(); ++ i) {
+  for(let i = results.min(); i <= results.max(); ++ i) {
     const pE = results.exact_probability(i);
     if(pE < 0.00000001) {
       continue;

@@ -7,8 +7,8 @@ describe('Raffle', () => {
 		Raffle.generator = jasmine.createSpy('generator')
 			.and.callFake((tickets, prizes, pCutoff, callback) => {
 				callback([
-					{p: 0.5, value: 0},
-					{p: 1.0, value: 1},
+					{cp: 0.5, p: 0.5, value: 0},
+					{cp: 1.0, p: 0.5, value: 1},
 				]);
 			});
 	});
@@ -45,8 +45,8 @@ describe('Raffle', () => {
 			const raffle = new Raffle({audience: 7});
 			raffle.enter(2).then((result) => {
 				expect(result.cumulativeP).toEqual([
-					{p: 0.5, value: 0},
-					{p: 1.0, value: 1},
+					{cp: 0.5, p: 0.5, value: 0},
+					{cp: 1.0, p: 0.5, value: 1},
 				]);
 				done();
 			});
@@ -60,9 +60,9 @@ describe('Raffle Result', () => {
 	beforeEach((done) => {
 		Raffle.generator = (tickets, prizes, pCutoff, callback) => {
 			callback([
-				{p: 0.2, value: 0},
-				{p: 0.6, value: 1},
-				{p: 1.0, value: 2},
+				{cp: 0.2, p: 0.2, value: 0},
+				{cp: 0.6, p: 0.4, value: 1},
+				{cp: 1.0, p: 0.4, value: 2},
 			]);
 		};
 		const raffle = new Raffle({audience: 7});
@@ -72,15 +72,21 @@ describe('Raffle Result', () => {
 		});
 	});
 
-	describe('min_value', () => {
+	describe('min', () => {
 		it('returns the lowest possible prize value', () => {
-			expect(result.min_value()).toEqual(0);
+			expect(result.min()).toEqual(0);
 		});
 	});
 
-	describe('max_value', () => {
+	describe('max', () => {
 		it('returns the highest possible prize value', () => {
-			expect(result.max_value()).toEqual(2);
+			expect(result.max()).toEqual(2);
+		});
+	});
+
+	describe('mean', () => {
+		it('returns the mean prize value', () => {
+			expect(result.mean()).toBeNear(1.2, 1e-6);
 		});
 	});
 
