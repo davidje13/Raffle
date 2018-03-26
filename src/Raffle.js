@@ -107,8 +107,8 @@
 	class Raffle {
 		constructor({
 			audience = null,
-			prizes = [],
 			pCutoff = 0,
+			prizes = [],
 		}) {
 			this.pCutoff = pCutoff;
 
@@ -164,6 +164,12 @@
 	}
 
 	Raffle.basePath = 'src';
+
+	Raffle.from = (seed, {pCutoff = 0} = {}) => new Raffle({
+		audience: seed.audience(),
+		pCutoff,
+		prizes: seed.prizes(),
+	});
 
 	Raffle.generator = (tickets, prizes, pCutoff, callback) => {
 		const worker = new Worker(`${Raffle.basePath}/raffle_worker.js`);

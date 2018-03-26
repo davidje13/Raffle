@@ -2,23 +2,36 @@
 <head>
 <style>
 body {
+	margin: 0;
+	padding: 0;
+}
+.controls {
+	padding: 7px 5px;
+	background: #EEEEEE;
+	border-bottom: 1px solid #DDDDDD;
+	font: 0.8em sans-serif;
+}
+.controls label {
+	display: inline-block;
+}
+.controls label, .controls select, .controls button {
+	margin: 3px 5px;
+}
+#output {
 	font: 1em monospace;
 	line-height: 1.4;
+	margin: 20px;
 }
-.head {
+#output .head {
 	font-weight: bolder;
+}
+.right {
+	float: right;
 }
 </style>
 <script src="src/Raffle.js"></script>
+<script src="src/nsi.js"></script>
 <script>
-function add_message(m, cls = '') {
-	const t = document.createTextNode(m);
-	const d = document.createElement('div');
-	d.appendChild(t);
-	d.setAttribute('class', cls);
-	document.body.appendChild(d);
-	return d;
-}
 
 function money(v) {
 	return '\u00A3' + v.toFixed(2);
@@ -29,8 +42,91 @@ function apr(monthly, capital) {
 }
 
 window.addEventListener('load', () => {
-	// NS&I premium bonds
-	const prizes = [
+	const raffleSelect = document.getElementById('raffle');
+	const loadNSI = document.getElementById('load_nsi');
+	const ticketsField = document.getElementById('tickets');
+	const calculate = document.getElementById('calculate');
+	const output = document.getElementById('output');
+
+	const raffles = [];
+
+	function add_message(m, cls = '') {
+		const t = document.createTextNode(m);
+		const d = document.createElement('div');
+		d.appendChild(t);
+		d.setAttribute('class', cls);
+		output.appendChild(d);
+		return d;
+	}
+
+	function add_raffle(name, seed) {
+		const index = raffles.length;
+		raffles.push({
+			name,
+			raffle: Raffle.from(seed, {pCutoff: 1e-10}),
+		});
+		const opt = document.createElement('option');
+		const txt = document.createTextNode(name);
+		opt.appendChild(txt);
+		opt.setAttribute('value', index);
+		raffleSelect.appendChild(opt);
+		return index;
+	}
+
+	function run(raffle, tickets) {
+		const games = [];
+		if(!tickets) {
+			for(let i = 1000; i <= 50000; i += 1000) {
+				games.push(raffle.enter(i));
+			}
+		} else {
+			games.push(raffle.enter(tickets));
+		}
+
+		add_message('Calculating for audience of ' + raffle.audience() + '\u2026');
+
+		return Promise.all(games).then((allResults) => {
+			for(const results of allResults) {
+				const tickets = results.tickets();
+				const mean = results.mean();
+				const median = results.median();
+				add_message('Tickets: ' + tickets, 'head');
+				add_message(
+					'Mean: ' + money(mean)
+					+ ' (' + apr(mean, tickets).toFixed(3) + '% APR)'
+				);
+				add_message(
+					'Median: ' + money(median)
+				);
+				add_message(
+					'Percentiles: '
+					+ '0th = ' + money(results.percentile(0)) + ', '
+					+ '25th = ' + money(results.percentile(25)) + ', '
+					+ '50th = ' + money(results.percentile(50)) + ', '
+					+ '75th = ' + money(results.percentile(75)) + ', '
+					+ '100th = ' + money(results.percentile(100))
+				);
+			}
+
+			const results = allResults[allResults.length - 1];
+			add_message('Breakdown for tickets: ' + results.tickets(), 'head');
+			for(let i = results.min(); i <= results.max(); ++ i) {
+				const pE = results.exact_probability(i);
+				if(pE < 0.00000001) {
+					continue;
+				}
+				const pR = results.range_probability(i, Number.POSITIVE_INFINITY);
+				add_message(
+					'= ' + money(i) + ': ' +
+					(pE * 100).toFixed(4) + '%' +
+					' >= ' + money(i) + ': ' +
+					(pR * 100).toFixed(4) + '%'
+				);
+			}
+		});
+	}
+
+	const basicRaffle = add_raffle('NS&I Premium Bonds Sample Data', new NSI([
 		{value: 1000000, count:       2},
 		{value:  100000, count:       5},
 		{value:   50000, count:       8},
@@ -42,63 +138,51 @@ window.addEventListener('load', () => {
 		{value:     100, count:   23554},
 		{value:      50, count:   23554},
 		{value:      25, count: 2950583},
-	];
-	const fixedOdds = 24500; // 1 in x
-	const raffle = new Raffle({
-		audience: prizes.reduce((a, {count}) => a + count, 0) * fixedOdds,
-		prizes,
-		pCutoff: 1e-10,
+	], 24500));
+
+	raffleSelect.value = basicRaffle;
+
+	let loadedNSI = false;
+	loadNSI.addEventListener('click', () => {
+		if(loadedNSI) {
+			return;
+		}
+		loadedNSI = true;
+		loadNSI.setAttribute('disabled', 'disabled');
+		loadNSI.textContent = 'Loading\u2026';
+
+		NSI.load().then(({last, next}) => {
+			loadNSI.textContent = 'Loaded';
+			add_raffle('Previous NS&I Raffle', last);
+			const nextRaffle = add_raffle('Predicted Next NS&I Raffle', next);
+			raffleSelect.value = nextRaffle;
+		});
 	});
 
-	const games = [];
-	for(let i = 1000; i <= 50000; i += 1000) {
-		games.push(raffle.enter(i));
-	}
+	calculate.addEventListener('click', () => {
+		raffleSelect.setAttribute('disabled', 'disabled');
+		calculate.setAttribute('disabled', 'disabled');
 
-	add_message('Calculating for audience of ' + raffle.audience() + '\u2026');
-
-	Promise.all(games).then((allResults) => {
-		for(const results of allResults) {
-			const tickets = results.tickets();
-			const mean = results.mean();
-			const median = results.median();
-			add_message('Tickets: ' + tickets, 'head');
-			add_message(
-				'Mean: ' + money(mean)
-				+ ' (' + apr(mean, tickets).toFixed(3) + '% APR)'
-			);
-			add_message(
-				'Median: ' + money(median)
-			);
-			add_message(
-				'Percentiles: '
-				+ '0th = ' + money(results.percentile(0)) + ', '
-				+ '25th = ' + money(results.percentile(25)) + ', '
-				+ '50th = ' + money(results.percentile(50)) + ', '
-				+ '75th = ' + money(results.percentile(75)) + ', '
-				+ '100th = ' + money(results.percentile(100))
-			);
+		while(output.childElementCount > 0) {
+			output.removeChild(output.lastChild);
 		}
 
-		const results = allResults[allResults.length - 1];
-		add_message('Breakdown for tickets: ' + results.tickets(), 'head');
-		for(let i = results.min(); i <= results.max(); ++ i) {
-			const pE = results.exact_probability(i);
-			if(pE < 0.00000001) {
-				continue;
-			}
-			const pR = results.range_probability(i, Number.POSITIVE_INFINITY);
-			add_message(
-				'= ' + money(i) + ': ' +
-				(pE * 100).toFixed(4) + '%' +
-				' >= ' + money(i) + ': ' +
-				(pR * 100).toFixed(4) + '%'
-			);
-		}
+		run(raffles[raffleSelect.value].raffle, ticketsField.value)
+			.then(() => {
+				raffleSelect.removeAttribute('disabled');
+				calculate.removeAttribute('disabled');
+			});
 	});
 });
 </script>
 </head>
 <body>
+<div class="controls">
+<button id="load_nsi" class="right">Load latest prizes from NS&amp;I</button>
+<select id="raffle"></select>
+<label>Tickets: <input type="number" min="0" max="50000" step="1" value="10000" placeholder="multi" id="tickets" /></label>
+<button id="calculate">Calculate</button>
+</div>
+<div id="output"></div>
 </body>
 </html>
