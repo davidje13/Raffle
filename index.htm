@@ -157,7 +157,22 @@ window.addEventListener('load', () => {
 		});
 	}
 
-	const basicRaffle = add_raffle('NS&I Premium Bonds Sample Data', new NSI([
+	add_raffle('NS&I Premium Bonds Snapshot used by MSE', new NSI([
+		{value: 1000000, count:       2},
+		{value:  100000, count:       4},
+		{value:   50000, count:      10},
+		{value:   25000, count:      17},
+		{value:   10000, count:      43},
+		{value:    5000, count:      87},
+		{value:    1000, count:    1677},
+		{value:     500, count:    5031},
+		{value:     100, count:   22984},
+		{value:      50, count:   22984},
+		{value:      25, count: 2879959},
+		{value:       0, count: 71850560383},
+	]));
+
+	const basicRaffle = add_raffle('NS&I Premium Bonds Snapshot (March 2018)', new NSI([
 		{value: 1000000, count:       2},
 		{value:  100000, count:       5},
 		{value:   50000, count:       8},
@@ -169,7 +184,7 @@ window.addEventListener('load', () => {
 		{value:     100, count:   23554},
 		{value:      50, count:   23554},
 		{value:      25, count: 2950583},
-	], 24500));
+	], {audienceMultiplier: 24500}));
 
 	raffleSelect.value = basicRaffle;
 

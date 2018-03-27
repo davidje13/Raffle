@@ -59,8 +59,12 @@
 	}
 
 	class NSI {
-		constructor(prizes, audienceMultiplier) {
+		constructor(prizes, {
+			audienceMultiplier = null,
+			audience = null,
+		} = {}) {
 			this.ps = prizes;
+			this.m = audience;
 			this.mult = audienceMultiplier;
 		}
 
@@ -69,13 +73,19 @@
 		}
 
 		audience() {
-			return this.ps.reduce((a, {count}) => a + count, 0) * this.mult;
+			if(this.m !== null) {
+				return this.m;
+			}
+			if(this.mult !== null) {
+				return this.ps.reduce((a, {count}) => a + count, 0) * this.mult;
+			}
+			return null;
 		}
 	}
 
 	NSI.load = () => load_prizes().then(({prizesLast, prizesNext}) => ({
-		last: new NSI(prizesLast, 24500),
-		next: new NSI(prizesNext, 24500),
+		last: new NSI(prizesLast, {audienceMultiplier: 24500}),
+		next: new NSI(prizesNext, {audienceMultiplier: 24500}),
 	}));
 
 	if(typeof module === 'object') {
