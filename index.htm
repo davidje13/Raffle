@@ -5,16 +5,17 @@ body {
 	margin: 0;
 	padding: 0;
 }
-.controls {
+#controls {
+	margin: 0;
 	padding: 7px 5px;
 	background: #EEEEEE;
 	border-bottom: 1px solid #DDDDDD;
 	font: 0.8em sans-serif;
 }
-.controls label {
+#controls label {
 	display: inline-block;
 }
-.controls label, .controls select, .controls button {
+#controls label, #controls select, #controls button {
 	margin: 3px 5px;
 }
 #output {
@@ -42,6 +43,7 @@ function apr(monthly, capital) {
 }
 
 window.addEventListener('load', () => {
+	const controlsForm = document.getElementById('controls');
 	const raffleSelect = document.getElementById('raffle');
 	const loadNSI = document.getElementById('load_nsi');
 	const ticketsField = document.getElementById('tickets');
@@ -188,7 +190,8 @@ window.addEventListener('load', () => {
 		});
 	});
 
-	calculate.addEventListener('click', () => {
+	controlsForm.addEventListener('submit', (e) => {
+		e.preventDefault();
 		raffleSelect.setAttribute('disabled', 'disabled');
 		calculate.setAttribute('disabled', 'disabled');
 
@@ -208,12 +211,12 @@ window.addEventListener('load', () => {
 </script>
 </head>
 <body>
-<div class="controls">
-<button id="load_nsi" class="right">Load latest prizes from NS&amp;I</button>
-<select id="raffle"></select>
-<label>Tickets: <input type="number" min="0" max="50000" step="1" value="10000" placeholder="multi" id="tickets" /></label>
-<button id="calculate">Calculate</button>
-</div>
+<form id="controls" action="#">
+<button id="load_nsi" type="button" class="right" tabindex="2">Load latest prizes from NS&amp;I</button>
+<select id="raffle" tabindex="1"></select>
+<label>Tickets: <input id="tickets" type="number" min="0" max="50000" step="1" value="10000" placeholder="multi" tabindex="1" /></label>
+<button id="calculate" type="submit" tabindex="1">Calculate</button>
+</form>
 <div id="output"></div>
 </body>
 </html>
