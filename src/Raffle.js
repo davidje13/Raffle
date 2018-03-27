@@ -211,6 +211,10 @@
 			return this.m;
 		}
 
+		prizes() {
+			return this.rarePrizes;
+		}
+
 		enter(tickets) {
 			if(tickets < 0 || tickets > this.m) {
 				throw new Error('Invalid ticket count');

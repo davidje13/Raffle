@@ -2,29 +2,40 @@
 
 const Raffle = require('../src/Raffle');
 
+class SpyEngine {
+	constructor(response) {
+		/* eslint-disable jasmine/no-unsafe-spy */
+		/*
+		 * To be safe, this object can only be created from within
+		 * a beforeEach / it block
+		 */
+		this.queue_task = jasmine.createSpy('queue_task')
+			.and.callFake(() => Promise.resolve(response));
+		/* eslint-enable jasmine/no-unsafe-spy */
+	}
+}
+
 describe('Raffle', () => {
 	let engine = null;
 
 	beforeEach(() => {
-		engine = {
-			queue_task: jasmine.createSpy('queue_task')
-				.and.returnValue(Promise.resolve({
-					cumulativeP: [
-						{cp: 0.5, p: 0.5, value: 0},
-						{cp: 1.0, p: 0.5, value: 1},
-					],
-				})),
-		};
+		engine = new SpyEngine({
+			cumulativeP: [
+				{cp: 0.5, p: 0.5, value: 0},
+				{cp: 1.0, p: 0.5, value: 1},
+			],
+		});
 	});
 
 	it('stores an audience size', () => {
-		const raffle = new Raffle({audience: 7});
+		const raffle = new Raffle({audience: 7, engine});
 
 		expect(raffle.audience()).toEqual(7);
 	});
 
 	it('uses the total number of prizes as a default audience size', () => {
 		const raffle = new Raffle({
+			engine,
 			prizes: [
 				{count: 3, value: 7},
 				{count: 10, value: 2},
@@ -34,6 +45,61 @@ describe('Raffle', () => {
 		});
 
 		expect(raffle.audience()).toEqual(16);
+	});
+
+	it('stores prizes in rarity order', () => {
+		const raffle = new Raffle({
+			engine,
+			prizes: [
+				{count: 3, value: 7},
+				{count: 10, value: 2},
+				{count: 1, value: 0},
+			],
+		});
+
+		expect(raffle.prizes()).toEqual([
+			{count: 1, value: 0},
+			{count: 3, value: 7},
+			{count: 10, value: 2},
+		]);
+	});
+
+	it('combines prizes of the same value', () => {
+		const raffle = new Raffle({
+			engine,
+			prizes: [
+				{count: 3, value: 7},
+				{count: 10, value: 2},
+				{count: 2, value: 2},
+				{count: 1, value: 0},
+			],
+		});
+
+		expect(raffle.prizes()).toEqual([
+			{count: 1, value: 0},
+			{count: 3, value: 7},
+			{count: 12, value: 2},
+		]);
+	});
+
+	it('fills in 0 prizes if the audience size is large', () => {
+		const raffle = new Raffle({
+			audience: 20,
+			engine,
+			prizes: [
+				{count: 3, value: 7},
+				{count: 10, value: 2},
+				{count: 2, value: 2},
+				{count: 1, value: 0},
+			],
+		});
+
+		expect(raffle.audience()).toEqual(20);
+		expect(raffle.prizes()).toEqual([
+			{count: 3, value: 7},
+			{count: 5, value: 0},
+			{count: 12, value: 2},
+		]);
 	});
 
 	describe('enter', () => {
@@ -59,20 +125,16 @@ describe('Raffle', () => {
 });
 
 describe('Raffle Result', () => {
-	let engine = null;
 	let result = null;
 
 	beforeEach((done) => {
-		engine = {
-			queue_task: jasmine.createSpy('queue_task')
-				.and.returnValue(Promise.resolve({
-					cumulativeP: [
-						{cp: 0.2, p: 0.2, value: 0},
-						{cp: 0.6, p: 0.4, value: 1},
-						{cp: 1.0, p: 0.4, value: 2},
-					],
-				})),
-		};
+		const engine = new SpyEngine({
+			cumulativeP: [
+				{cp: 0.2, p: 0.2, value: 0},
+				{cp: 0.6, p: 0.4, value: 1},
+				{cp: 1.0, p: 0.4, value: 2},
+			],
+		});
 
 		const raffle = new Raffle({audience: 7, engine});
 		raffle.enter(2).then((res) => {

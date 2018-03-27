@@ -282,17 +282,17 @@
 		let fullPMap = null;
 		let lastPMap = pMap;
 
-		/* eslint-disable no-bitwise */
 		for(let p = power; ; lastPMap = mult(lastPMap, lastPMap, pCutoff)) {
+			/* eslint-disable no-bitwise */
 			if(p & 1) {
 				fullPMap = mult(fullPMap, lastPMap, pCutoff);
 			}
 			p >>>= 1;
+			/* eslint-enable no-bitwise */
 			if(!p) {
 				break;
 			}
 		}
-		/* eslint-enable no-bitwise */
 
 		return fullPMap;
 	}
