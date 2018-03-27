@@ -77,45 +77,67 @@ window.addEventListener('load', () => {
 		const games = [];
 		if(!tickets) {
 			for(let i = 1000; i <= 50000; i += 1000) {
-				games.push(raffle.enter(i));
+				games.push(raffle.enter(i)
+				.then((result1) => result1.pow(12, {pCutoff: 1e-10})
+				.then((result12) => ({result1, result12})))
+			);
 			}
 		} else {
-			games.push(raffle.enter(tickets));
+			games.push(raffle.enter(tickets)
+				.then((result1) => result1.pow(12, {pCutoff: 1e-10})
+				.then((result12) => ({result1, result12})))
+			);
 		}
 
 		add_message('Calculating for audience of ' + raffle.audience() + '\u2026');
 
 		return Promise.all(games).then((allResults) => {
-			for(const results of allResults) {
-				const tickets = results.tickets();
-				const mean = results.mean();
-				const median = results.median();
+			for(const {result1, result12} of allResults) {
+				const tickets = result1.tickets();
 				add_message('Tickets: ' + tickets, 'head');
+
+				const mean1 = result1.mean();
+				const mean12 = result12.mean();
+				const median1 = result1.median();
+				const median12 = result12.median();
+
 				add_message(
-					'Mean: ' + money(mean)
-					+ ' (' + apr(mean, tickets).toFixed(3) + '% APR)'
+					'Mean: 1 month: ' + money(mean1)
+					+ ' (' + apr(mean1, tickets).toFixed(3) + '% APR)'
+					+ ', 12 months: ' + money(mean12)
+					+ ' (' + (mean12 * 100 / tickets).toFixed(3) + '% APR)'
 				);
 				add_message(
-					'Median: ' + money(median)
+					'Median: 1 month: ' + money(median1)
+					+ ', 12 months: ' + money(median12)
+					+ ' (' + (median12 * 100 / tickets).toFixed(3) + '% APR)'
 				);
 				add_message(
-					'Percentiles: '
-					+ '0th = ' + money(results.percentile(0)) + ', '
-					+ '25th = ' + money(results.percentile(25)) + ', '
-					+ '50th = ' + money(results.percentile(50)) + ', '
-					+ '75th = ' + money(results.percentile(75)) + ', '
-					+ '100th = ' + money(results.percentile(100))
+					'1 Month Percentiles: '
+					+ '0th = ' + money(result1.percentile(0)) + ', '
+					+ '25th = ' + money(result1.percentile(25)) + ', '
+					+ '50th = ' + money(result1.percentile(50)) + ', '
+					+ '75th = ' + money(result1.percentile(75)) + ', '
+					+ '100th = ' + money(result1.percentile(100))
+				);
+				add_message(
+					'12 Month Percentiles: '
+					+ '0th = ' + money(result12.percentile(0)) + ', '
+					+ '25th = ' + money(result12.percentile(25)) + ', '
+					+ '50th = ' + money(result12.percentile(50)) + ', '
+					+ '75th = ' + money(result12.percentile(75)) + ', '
+					+ '100th = ' + money(result12.percentile(100))
 				);
 			}
 
-			const results = allResults[allResults.length - 1];
-			add_message('Breakdown for tickets: ' + results.tickets(), 'head');
-			for(let i = results.min(); i <= results.max(); ++ i) {
-				const pE = results.exact_probability(i);
+			const result1 = allResults[allResults.length - 1].result1;
+			add_message('Breakdown for tickets: ' + result1.tickets(), 'head');
+			for(let i = result1.min(); i <= result1.max(); ++ i) {
+				const pE = result1.exact_probability(i);
 				if(pE < 0.00000001) {
 					continue;
 				}
-				const pR = results.range_probability(i, Number.POSITIVE_INFINITY);
+				const pR = result1.range_probability(i, Number.POSITIVE_INFINITY);
 				add_message(
 					'= ' + money(i) + ': ' +
 					(pE * 100).toFixed(4) + '%' +

@@ -11,10 +11,8 @@ function send_profiling(name, millis) {
 }
 
 function accumulate(map, key, value) {
-	if(value > 0) {
-		const existing = map.get(key) || 0;
-		map.set(key, existing + value);
-	}
+	const existing = map.get(key) || 0;
+	map.set(key, existing + value);
 }
 
 const ln_factorial = (() => {
@@ -120,14 +118,19 @@ function apply_distribution(prob, audience, {value, count}, pCutoff) {
 		const odds = calculate_odds(audience, count, limit - n - 1);
 		totalTm += perf_now() - tm0;
 		prob[n].forEach((p, v) => {
-			if(p > pCutoff) {
-				for(let i = 1; i < odds.length; ++ i) {
-					accumulate(prob[n + i], v + i * value, p * odds[i]);
-				}
-			}
 			// Update current entry with new odds
 			// (Iteration order is fixed, so no risk of looping forever)
 			prob[n].set(v, p * odds[0]);
+
+			if(p <= pCutoff) {
+				return;
+			}
+			for(let i = 1; i < odds.length; ++ i) {
+				const pp = p * odds[i];
+				if(pp > 0) {
+					accumulate(prob[n + i], v + i * value, pp);
+				}
+			}
 		});
 	}
 	send_profiling('Calculate odds', totalTm);
@@ -164,8 +167,14 @@ function apply_final_distribution(prob, audience, {value, count}) {
 		}
 		const i = limit - n - 1;
 		const odds = calculate_final_odds(audience, count, i);
+		if(odds <= 0) {
+			continue;
+		}
 		prob[n].forEach((p, v) => {
-			accumulate(prob[n + i], v + i * value, p * odds);
+			const pp = p * odds;
+			if(pp > 0) {
+				accumulate(prob[n + i], v + i * value, pp);
+			}
 		});
 	}
 }
@@ -210,9 +219,18 @@ function calculate_probability_map(prizes, tickets, pCutoff) {
 	return prob[tickets];
 }
 
-function extract_cumulative_probability(pMap) {
+function make_pmap(cumulativeP) {
+	const pMap = new Map();
+	cumulativeP.forEach(({p, value}) => {
+		pMap.set(value, p);
+	});
+	return pMap;
+}
+
+function extract_cumulative_probability(pMap, pCutoff) {
 	const cumulativeP = Array.from(pMap.entries())
 		.map(([value, p]) => ({cp: 0, p, value}))
+		.filter(({p}) => (p > pCutoff))
 		.sort((a, b) => (a.value - b.value));
 
 	let totalP = 0;
@@ -230,24 +248,91 @@ function extract_cumulative_probability(pMap) {
 	return {cumulativeP, totalP};
 }
 
-function message_listener(event) {
-	const tB = perf_now();
-	const pMap = calculate_probability_map(
-		event.data.prizes,
-		event.data.tickets,
-		event.data.pCutoff
-	);
+function mult(a, b, pCutoff) {
+	if(!a) {
+		return b;
+	}
+	if(!b) {
+		return a;
+	}
 
-	const {cumulativeP, totalP} = extract_cumulative_probability(pMap);
+	const m = new Map();
+	for(const [av, ap] of a.entries()) {
+		for(const [bv, bp] of b.entries()) {
+			const p = ap * bp;
+			if(p > pCutoff) {
+				accumulate(m, av + bv, p);
+			}
+		}
+	}
+	return m;
+}
+
+function pow(pMap, power, pCutoff) {
+	if(power === 0) {
+		const p1Map = new Map();
+		p1Map.set(0, 1);
+		return p1Map;
+	}
+
+	let fullPMap = null;
+	let lastPMap = pMap;
+
+	/* eslint-disable no-bitwise */
+	for(let p = power; ; lastPMap = mult(lastPMap, lastPMap, pCutoff)) {
+		if(p & 1) {
+			fullPMap = mult(fullPMap, lastPMap, pCutoff);
+		}
+		p >>>= 1;
+		if(!p) {
+			break;
+		}
+	}
+	/* eslint-enable no-bitwise */
+
+	return fullPMap;
+}
+
+function message_listener_generate({prizes, tickets, pCutoff}) {
+	const pMap = calculate_probability_map(prizes, tickets, pCutoff);
+	const result = extract_cumulative_probability(pMap, pCutoff);
+
+	return {
+		cumulativeP: result.cumulativeP,
+		normalisation: result.totalP,
+		type: 'result',
+	};
+}
+
+function message_listener_pow({cumulativeP, power, pCutoff}) {
+	const pMap1 = make_pmap(cumulativeP);
+	const pMapN = pow(pMap1, power, pCutoff);
+	const result = extract_cumulative_probability(pMapN, pCutoff);
+
+	return {
+		cumulativeP: result.cumulativeP,
+		normalisation: result.totalP,
+		type: 'result',
+	};
+}
+
+function message_listener({data}) {
+	const tB = perf_now();
+	let result = null;
+
+	switch(data.type) {
+	case 'generate':
+		result = message_listener_generate(data);
+		break;
+	case 'pow':
+		result = message_listener_pow(data);
+		break;
+	}
 
 	const tE = perf_now();
 	send_profiling('Total', tE - tB);
 
-	post.fn({
-		cumulativeP,
-		normalisation: totalP,
-		type: 'result',
-	});
+	post.fn(result);
 }
 
 try {
@@ -275,6 +360,8 @@ if(typeof module === 'object') {
 		extract_cumulative_probability,
 		ln_factorial,
 		message_listener,
+		mult,
 		post,
+		pow,
 	};
 }

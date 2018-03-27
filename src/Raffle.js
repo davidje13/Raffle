@@ -26,8 +26,42 @@
 		return Math.max(Math.min(value, high), low);
 	}
 
+	function extractPrizeMap(prizes, audience) {
+		let prizeCount = 0;
+		const prizeMap = new Map();
+		for(const prize of prizes) {
+			if(prize.count < 0) {
+				throw new Error('Invalid prize count');
+			}
+
+			accumulate(prizeMap, prize.value, prize.count);
+			prizeCount += prize.count;
+		}
+
+		if(audience === null) {
+			return {
+				fullAudience: prizeCount,
+				prizeMap,
+			};
+		}
+
+		if(audience < 0) {
+			throw new Error('Invalid audience size');
+		}
+		if(prizeCount > audience) {
+			throw new Error('Too many prizes');
+		}
+		accumulate(prizeMap, 0, audience - prizeCount);
+
+		return {
+			fullAudience: audience,
+			prizeMap,
+		};
+	}
+
 	class Results {
-		constructor(tickets, cumulativeP) {
+		constructor(engine, tickets, cumulativeP) {
+			this.engine = engine;
 			this.n = tickets;
 			this.cumulativeP = cumulativeP;
 			this.vmin = this.cumulativeP[0].value;
@@ -102,39 +136,70 @@
 		median() {
 			return this.percentile(50);
 		}
+
+		pow(power, {pCutoff = 0} = {}) {
+			if(power === 0) {
+				return new Results(
+					this.engine,
+					this.n,
+					[{cp: 1, p: 1, value: 0}]
+				);
+			} else if(power === 1) {
+				return this;
+			}
+			if(power < 0 || Math.round(power) !== power) {
+				throw new Error(`Invalid power: ${power}`);
+			}
+			return this.engine.queue_task({
+				cumulativeP: this.cumulativeP,
+				pCutoff,
+				power,
+				type: 'pow',
+			}).then(({cumulativeP}) => new Results(
+				this.engine,
+				this.n,
+				cumulativeP
+			));
+		}
+	}
+
+	class WebWorkerEngine {
+		constructor({basePath = 'src'} = {}) {
+			this.workerFilePath = `${basePath}/raffle_worker.js`;
+		}
+
+		queue_task(trigger) {
+			return new Promise((resolve) => {
+				const worker = new Worker(this.workerFilePath);
+				worker.addEventListener('message', (event) => {
+					switch(event.data.type) {
+					case 'info':
+						window.console.log(event.data.message);
+						break;
+					case 'result':
+						worker.terminate();
+						resolve(event.data);
+						break;
+					}
+				});
+				worker.postMessage(trigger);
+			});
+		}
 	}
 
 	class Raffle {
 		constructor({
 			audience = null,
+			engine = null,
 			pCutoff = 0,
 			prizes = [],
 		}) {
+			this.engine = engine || new WebWorkerEngine();
 			this.pCutoff = pCutoff;
 
-			let prizeCount = 0;
-			const prizeMap = new Map();
-			for(const prize of prizes) {
-				if(prize.count < 0) {
-					throw new Error('Invalid prize count');
-				}
+			const {fullAudience, prizeMap} = extractPrizeMap(prizes, audience);
 
-				accumulate(prizeMap, prize.value, prize.count);
-				prizeCount += prize.count;
-			}
-
-			if(audience === null) {
-				this.m = prizeCount;
-			} else {
-				if(audience < 0) {
-					throw new Error('Invalid audience size');
-				}
-				if(prizeCount > audience) {
-					throw new Error('Too many prizes');
-				}
-				accumulate(prizeMap, 0, audience - prizeCount);
-				this.m = audience;
-			}
+			this.m = fullAudience;
 
 			// Store rarePrizes = lowest count to highest
 			this.rarePrizes = Array.from(prizeMap.entries())
@@ -150,46 +215,26 @@
 			if(tickets < 0 || tickets > this.m) {
 				throw new Error('Invalid ticket count');
 			}
-			return new Promise((resolve) => {
-				Raffle.generator(
-					tickets,
-					this.rarePrizes,
-					this.pCutoff,
-					(cumulativeP) => {
-						resolve(new Results(tickets, cumulativeP));
-					}
-				);
-			});
+			return this.engine.queue_task({
+				pCutoff: this.pCutoff,
+				prizes: this.rarePrizes,
+				tickets,
+				type: 'generate',
+			}).then(({cumulativeP}) => new Results(
+				this.engine,
+				tickets,
+				cumulativeP
+			));
 		}
 	}
 
-	Raffle.basePath = 'src';
+	Raffle.WebWorkerEngine = WebWorkerEngine;
 
 	Raffle.from = (seed, {pCutoff = 0} = {}) => new Raffle({
 		audience: seed.audience(),
 		pCutoff,
 		prizes: seed.prizes(),
 	});
-
-	Raffle.generator = (tickets, prizes, pCutoff, callback) => {
-		const worker = new Worker(`${Raffle.basePath}/raffle_worker.js`);
-		worker.addEventListener('message', (event) => {
-			switch(event.data.type) {
-			case 'info':
-				window.console.log(event.data.message);
-				break;
-			case 'result':
-				worker.terminate();
-				callback(event.data.cumulativeP);
-				break;
-			}
-		});
-		worker.postMessage({
-			pCutoff,
-			prizes,
-			tickets,
-		});
-	};
 
 	if(typeof module === 'object') {
 		module.exports = Raffle;

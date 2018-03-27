@@ -7,7 +7,9 @@ const {
 	extract_cumulative_probability,
 	ln_factorial,
 	message_listener,
+	mult,
 	post,
+	pow,
 } = require('../src/raffle_worker');
 
 describe('ln_factorial', () => {
@@ -190,13 +192,124 @@ describe('calculate_probability_map', () => {
 	});
 });
 
+describe('mult', () => {
+	it('multiplies two probability maps', () => {
+		const pMap1 = new Map();
+		pMap1.set(0, 0.5);
+		pMap1.set(1, 0.5);
+
+		const pMap2 = new Map();
+		pMap2.set(2, 0.25);
+		pMap2.set(5, 0.25);
+		pMap2.set(7, 0.50);
+
+		const pMapM = mult(pMap1, pMap2, 0);
+
+		expect(pMapM.size).toEqual(6);
+		expect(pMapM.get(2)).toEqual(0.125);
+		expect(pMapM.get(3)).toEqual(0.125);
+		expect(pMapM.get(5)).toEqual(0.125);
+		expect(pMapM.get(6)).toEqual(0.125);
+		expect(pMapM.get(7)).toEqual(0.250);
+		expect(pMapM.get(8)).toEqual(0.250);
+	});
+
+	it('combines incident values', () => {
+		const pMap1 = new Map();
+		pMap1.set(0, 0.5);
+		pMap1.set(2, 0.5);
+
+		const pMap2 = new Map();
+		pMap2.set(1, 0.5);
+		pMap2.set(3, 0.5);
+
+		const pMapM = mult(pMap1, pMap2, 0);
+
+		expect(pMapM.size).toEqual(3);
+		expect(pMapM.get(1)).toEqual(0.25);
+		expect(pMapM.get(3)).toEqual(0.50);
+		expect(pMapM.get(5)).toEqual(0.25);
+	});
+
+	it('returns identity transforms if a parameter is null', () => {
+		const pMap1 = new Map();
+		pMap1.set(0, 1);
+
+		expect(mult(pMap1, null, 0)).toEqual(pMap1);
+		expect(mult(null, pMap1, 0)).toEqual(pMap1);
+	});
+
+	it('returns null if both parameters are null', () => {
+		expect(mult(null, null, 0)).toBeNull();
+	});
+});
+
+describe('power', () => {
+	it('repeatedly multiplies a probability map by itself', () => {
+		const pMap = new Map();
+		pMap.set(0, 0.5);
+		pMap.set(1, 0.5);
+
+		const pMapP = pow(pMap, 2, 0);
+
+		expect(pMapP.size).toEqual(3);
+		expect(pMapP.get(0)).toEqual(0.25);
+		expect(pMapP.get(1)).toEqual(0.50);
+		expect(pMapP.get(2)).toEqual(0.25);
+	});
+
+	it('handles large powers', () => {
+		const pMap = new Map();
+		pMap.set(0, 0.5);
+		pMap.set(1, 0.5);
+
+		const pMapP = pow(pMap, 12, 0);
+
+		expect(pMapP.size).toEqual(13);
+		expect(pMapP.get(0)).toBeNear(1 / 4096, 1e-6);
+		expect(pMapP.get(1)).toBeNear(12 / 4096, 1e-6);
+		expect(pMapP.get(2)).toBeNear(66 / 4096, 1e-6);
+		expect(pMapP.get(3)).toBeNear(220 / 4096, 1e-6);
+		expect(pMapP.get(4)).toBeNear(495 / 4096, 1e-6);
+		expect(pMapP.get(5)).toBeNear(792 / 4096, 1e-6);
+		expect(pMapP.get(6)).toBeNear(924 / 4096, 1e-6);
+		expect(pMapP.get(7)).toBeNear(792 / 4096, 1e-6);
+		expect(pMapP.get(8)).toBeNear(495 / 4096, 1e-6);
+		expect(pMapP.get(9)).toBeNear(220 / 4096, 1e-6);
+		expect(pMapP.get(10)).toBeNear(66 / 4096, 1e-6);
+		expect(pMapP.get(11)).toBeNear(12 / 4096, 1e-6);
+		expect(pMapP.get(12)).toBeNear(1 / 4096, 1e-6);
+	});
+
+	it('returns identity transforms if the power is 1', () => {
+		const pMap = new Map();
+		pMap.set(0, 0.5);
+		pMap.set(1, 0.5);
+
+		const pMapP = pow(pMap, 1, 0);
+
+		expect(pMapP).toEqual(pMap);
+	});
+
+	it('returns a unitary pMap if the power is 0', () => {
+		const pMap = new Map();
+		pMap.set(0, 0.5);
+		pMap.set(1, 0.5);
+
+		const pMapP = pow(pMap, 0, 0);
+
+		expect(pMapP.size).toEqual(1);
+		expect(pMapP.get(0)).toEqual(1);
+	});
+});
+
 describe('extract_cumulative_probability', () => {
 	it('creates a cumulative probability array from a map', () => {
 		const pMap = new Map();
 		pMap.set(0, 0.5);
 		pMap.set(1, 0.5);
 
-		const {cumulativeP} = extract_cumulative_probability(pMap);
+		const {cumulativeP} = extract_cumulative_probability(pMap, 0);
 
 		expect(cumulativeP).toEqual([
 			{cp: 0.5, p: 0.5, value: 0},
@@ -209,7 +322,7 @@ describe('extract_cumulative_probability', () => {
 		pMap.set(1, 0.5);
 		pMap.set(0, 0.5);
 
-		const {cumulativeP} = extract_cumulative_probability(pMap);
+		const {cumulativeP} = extract_cumulative_probability(pMap, 0);
 
 		expect(cumulativeP).toEqual([
 			{cp: 0.5, p: 0.5, value: 0},
@@ -222,7 +335,7 @@ describe('extract_cumulative_probability', () => {
 		pMap.set(1, 1);
 		pMap.set(0, 1);
 
-		const {cumulativeP, totalP} = extract_cumulative_probability(pMap);
+		const {cumulativeP, totalP} = extract_cumulative_probability(pMap, 0);
 
 		expect(totalP).toEqual(2);
 		expect(cumulativeP).toEqual([
@@ -237,7 +350,7 @@ describe('message_listener', () => {
 		post.fn = jasmine.createSpy('fn');
 	});
 
-	it('performs a calculation when called', () => {
+	it('simulates odds in a raffle if called with "generate"', () => {
 		// With these values we can expect a precise result;
 		// No need to mess about with floating point rounding errors
 		const event = {
@@ -248,6 +361,7 @@ describe('message_listener', () => {
 					{count: 7, value: 0},
 				],
 				tickets: 1,
+				type: 'generate',
 			},
 		};
 		message_listener(event);
@@ -256,6 +370,31 @@ describe('message_listener', () => {
 			cumulativeP: [
 				{cp: 0.875, p: 0.875, value: 0},
 				{cp: 1.000, p: 0.125, value: 1},
+			],
+			normalisation: 1,
+			type: 'result',
+		});
+	});
+
+	it('raises a distribution to a power if called with "pow"', () => {
+		const event = {
+			data: {
+				cumulativeP: [
+					{cp: 0.5, p: 0.5, value: 0},
+					{cp: 1.0, p: 0.5, value: 1},
+				],
+				pCutoff: 0,
+				power: 2,
+				type: 'pow',
+			},
+		};
+		message_listener(event);
+
+		expect(post.fn).toHaveBeenCalledWith({
+			cumulativeP: [
+				{cp: 0.25, p: 0.25, value: 0},
+				{cp: 0.75, p: 0.50, value: 1},
+				{cp: 1.00, p: 0.25, value: 2},
 			],
 			normalisation: 1,
 			type: 'result',

@@ -3,14 +3,18 @@
 const Raffle = require('../src/Raffle');
 
 describe('Raffle', () => {
+	let engine = null;
+
 	beforeEach(() => {
-		Raffle.generator = jasmine.createSpy('generator')
-			.and.callFake((tickets, prizes, pCutoff, callback) => {
-				callback([
-					{cp: 0.5, p: 0.5, value: 0},
-					{cp: 1.0, p: 0.5, value: 1},
-				]);
-			});
+		engine = {
+			queue_task: jasmine.createSpy('queue_task')
+				.and.returnValue(Promise.resolve({
+					cumulativeP: [
+						{cp: 0.5, p: 0.5, value: 0},
+						{cp: 1.0, p: 0.5, value: 1},
+					],
+				})),
+		};
 	});
 
 	it('stores an audience size', () => {
@@ -34,7 +38,7 @@ describe('Raffle', () => {
 
 	describe('enter', () => {
 		it('asynchronously creates a result with the ticket count', (done) => {
-			const raffle = new Raffle({audience: 7});
+			const raffle = new Raffle({audience: 7, engine});
 			raffle.enter(2).then((result) => {
 				expect(result.tickets()).toEqual(2);
 				done();
@@ -42,7 +46,7 @@ describe('Raffle', () => {
 		});
 
 		it('stores calculated probabilities in the result', (done) => {
-			const raffle = new Raffle({audience: 7});
+			const raffle = new Raffle({audience: 7, engine});
 			raffle.enter(2).then((result) => {
 				expect(result.cumulativeP).toEqual([
 					{cp: 0.5, p: 0.5, value: 0},
@@ -55,17 +59,22 @@ describe('Raffle', () => {
 });
 
 describe('Raffle Result', () => {
+	let engine = null;
 	let result = null;
 
 	beforeEach((done) => {
-		Raffle.generator = (tickets, prizes, pCutoff, callback) => {
-			callback([
-				{cp: 0.2, p: 0.2, value: 0},
-				{cp: 0.6, p: 0.4, value: 1},
-				{cp: 1.0, p: 0.4, value: 2},
-			]);
+		engine = {
+			queue_task: jasmine.createSpy('queue_task')
+				.and.returnValue(Promise.resolve({
+					cumulativeP: [
+						{cp: 0.2, p: 0.2, value: 0},
+						{cp: 0.6, p: 0.4, value: 1},
+						{cp: 1.0, p: 0.4, value: 2},
+					],
+				})),
 		};
-		const raffle = new Raffle({audience: 7});
+
+		const raffle = new Raffle({audience: 7, engine});
 		raffle.enter(2).then((res) => {
 			result = res;
 			done();
