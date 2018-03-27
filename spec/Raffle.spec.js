@@ -232,4 +232,10 @@ describe('Raffle Result', () => {
 			expect(result.median()).toEqual(1);
 		});
 	});
+
+	describe('mode', () => {
+		it('returns the value with the highest probability', () => {
+			expect(result.mode()).toEqual(2);
+		});
+	});
 });

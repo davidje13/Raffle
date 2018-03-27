@@ -137,6 +137,18 @@
 			return this.percentile(50);
 		}
 
+		mode() {
+			let bestValue = null;
+			let bestP = 0;
+			this.cumulativeP.forEach(({p, value}) => {
+				if(p >= bestP) {
+					bestValue = value;
+					bestP = p;
+				}
+			});
+			return bestValue;
+		}
+
 		pow(power, {pCutoff = 0} = {}) {
 			if(power === 0) {
 				return new Results(

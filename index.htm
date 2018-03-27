@@ -100,6 +100,8 @@ window.addEventListener('load', () => {
 				const mean12 = result12.mean();
 				const median1 = result1.median();
 				const median12 = result12.median();
+				const mode1 = result1.mode();
+				const mode12 = result12.mode();
 
 				add_message(
 					'Mean: 1 month: ' + money(mean1)
@@ -111,6 +113,11 @@ window.addEventListener('load', () => {
 					'Median: 1 month: ' + money(median1)
 					+ ', 12 months: ' + money(median12)
 					+ ' (' + (median12 * 100 / tickets).toFixed(3) + '% APR)'
+				);
+				add_message(
+					'Mode: 1 month: ' + money(mode1)
+					+ ', 12 months: ' + money(mode12)
+					+ ' (' + (mode12 * 100 / tickets).toFixed(3) + '% APR)'
 				);
 				add_message(
 					'1 Month Percentiles: '
