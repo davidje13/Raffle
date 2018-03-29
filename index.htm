@@ -157,6 +157,8 @@ window.addEventListener('load', () => {
 		});
 	}
 
+	Raffle.set_engine(new Raffle.SharedWebWorkerEngine({workers: 8}));
+
 	add_raffle('NS&I Premium Bonds Snapshot used by MSE', new NSI([
 		{value: 1000000, count:       2},
 		{value:  100000, count:       4},

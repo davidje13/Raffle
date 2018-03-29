@@ -239,6 +239,19 @@
 		}
 	}
 
+	function worker_fn(callback) {
+		return (event) => {
+			switch(event.data.type) {
+			case 'info':
+				window.console.log(event.data.message);
+				break;
+			case 'result':
+				callback(event.data);
+				break;
+			}
+		};
+	}
+
 	class WebWorkerEngine {
 		constructor({basePath = 'src'} = {}) {
 			this.workerFilePath = `${basePath}/raffle_worker.js`;
@@ -247,30 +260,99 @@
 		queue_task(trigger) {
 			return new Promise((resolve) => {
 				const worker = new Worker(this.workerFilePath);
-				worker.addEventListener('message', (event) => {
-					switch(event.data.type) {
-					case 'info':
-						window.console.log(event.data.message);
-						break;
-					case 'result':
-						worker.terminate();
-						resolve(event.data);
-						break;
-					}
-				});
+				worker.addEventListener('message', worker_fn((data) => {
+					worker.terminate();
+					resolve(data);
+				}));
 				worker.postMessage(trigger);
 			});
 		}
 	}
 
+	class SharedWebWorkerEngine {
+		constructor({basePath = 'src', workers = 4} = {}) {
+			const workerFilePath = `${basePath}/raffle_worker.js`;
+
+			this.queue = [];
+			this.threads = [];
+			for(let i = 0; i < workers; ++ i) {
+				const thread = {
+					reject: null,
+					resolve: null,
+					run: ({reject, resolve, trigger}) => {
+						thread.reject = reject;
+						thread.resolve = resolve;
+						thread.worker.postMessage(trigger);
+					},
+					worker: new Worker(workerFilePath),
+				};
+				thread.worker.addEventListener('message', worker_fn((data) => {
+					const fn = thread.resolve;
+					if(this.queue.length > 0) {
+						thread.run(this.queue.shift());
+					} else {
+						thread.reject = null;
+						thread.resolve = null;
+					}
+					fn(data);
+				}));
+				this.threads.push(thread);
+			}
+		}
+
+		queue_task(trigger) {
+			return new Promise((resolve, reject) => {
+				for(const thread of this.threads) {
+					if(thread.resolve === null) {
+						thread.run({reject, resolve, trigger});
+						return;
+					}
+				}
+				this.queue.push({reject, resolve, trigger});
+			});
+		}
+
+		terminate() {
+			for(const {reject} of this.queue) {
+				if(reject !== null) {
+					reject('Terminated');
+				}
+			}
+			this.queue.length = 0;
+
+			for(const thread of this.threads) {
+				if(thread.reject !== null) {
+					thread.reject('Terminated');
+					thread.reject = null;
+					thread.resolve = null;
+					thread.worker.terminate();
+				}
+			}
+			this.threads.length = 0;
+		}
+	}
+
+	let defaultEngine = new WebWorkerEngine();
+
 	class Raffle {
+		static set_engine(engine) {
+			defaultEngine = engine;
+		}
+
+		static from(seed, options) {
+			return new Raffle(Object.assign({
+				audience: seed.audience(),
+				prizes: seed.prizes(),
+			}, options));
+		}
+
 		constructor({
 			audience = null,
 			engine = null,
 			pCutoff = 0,
 			prizes = [],
 		}) {
-			this.engine = engine || new WebWorkerEngine();
+			this.engine = engine || defaultEngine;
 			this.pCutoff = pCutoff;
 
 			const {fullAudience, prizeMap} = extract_prizemap(prizes, audience);
@@ -314,12 +396,9 @@
 		}
 	}
 
-	Raffle.WebWorkerEngine = WebWorkerEngine;
-
-	Raffle.from = (seed, {pCutoff = 0} = {}) => new Raffle({
-		audience: seed.audience(),
-		pCutoff,
-		prizes: seed.prizes(),
+	Object.assign(Raffle, {
+		SharedWebWorkerEngine,
+		WebWorkerEngine,
 	});
 
 	if(typeof module === 'object') {
