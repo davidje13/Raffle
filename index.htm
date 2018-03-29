@@ -214,11 +214,13 @@ window.addEventListener('load', () => {
 			output.removeChild(output.lastChild);
 		}
 
-		run(raffles[raffleSelect.value].raffle, ticketsField.value)
-			.then(() => {
-				raffleSelect.removeAttribute('disabled');
-				calculate.removeAttribute('disabled');
-			});
+		run(
+			raffles[raffleSelect.value].raffle,
+			Number.parseInt(ticketsField.value, 10)
+		).then(() => {
+			raffleSelect.removeAttribute('disabled');
+			calculate.removeAttribute('disabled');
+		});
 	});
 
 	add_message('Ready. Select options above and press Calculate to begin');

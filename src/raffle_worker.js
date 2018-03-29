@@ -334,7 +334,7 @@
 		}
 
 		const tE = perf_now();
-		send_profiling('Total', tE - tB);
+		send_profiling(`Total for ${data.type}`, tE - tB);
 
 		return result;
 	}

@@ -26,13 +26,31 @@
 		return Math.max(Math.min(value, high), low);
 	}
 
-	function extractPrizeMap(prizes, audience) {
+	function check_integer(
+		message,
+		value,
+		min = Number.NEGATIVE_INFINITY,
+		max = Number.POSITIVE_INFINITY
+	) {
+		if(typeof value !== 'number') {
+			throw new Error(`${message}: "${value}" (must be numeric)`);
+		}
+		if(Math.round(value) !== value) {
+			throw new Error(`${message}: ${value} (must be integer)`);
+		}
+		if(value < min) {
+			throw new Error(`${message}: ${value} (must be >= ${min})`);
+		}
+		if(value > max) {
+			throw new Error(`${message}: ${value} (must be <= ${max})`);
+		}
+	}
+
+	function extract_prizemap(prizes, audience) {
 		let prizeCount = 0;
 		const prizeMap = new Map();
 		for(const prize of prizes) {
-			if(prize.count < 0) {
-				throw new Error('Invalid prize count');
-			}
+			check_integer('Invalid prize count', prize.count, 0);
 
 			accumulate(prizeMap, prize.value, prize.count);
 			prizeCount += prize.count;
@@ -45,9 +63,7 @@
 			};
 		}
 
-		if(audience < 0) {
-			throw new Error('Invalid audience size');
-		}
+		check_integer('Invalid audience size', audience, 0);
 		if(prizeCount > audience) {
 			throw new Error('Too many prizes');
 		}
@@ -57,6 +73,54 @@
 			fullAudience: audience,
 			prizeMap,
 		};
+	}
+
+	class SharedPromise {
+		constructor(promise) {
+			this.state = 0;
+			this.chained = [];
+			this.v = null;
+
+			const fullResolve = (v) => {
+				this.v = v;
+				this.state = 1;
+				this.chained.forEach(({resolve}) => resolve(v));
+				this.chained = null;
+			};
+
+			const fullReject = (v) => {
+				this.v = v;
+				this.state = 2;
+				this.chained.forEach(({reject}) => reject(v));
+				this.chained = null;
+			};
+
+			if(typeof promise === 'function') {
+				promise(fullResolve, fullReject);
+			} else {
+				promise.then(fullResolve).catch(fullReject);
+			}
+		}
+
+		promise() {
+			return new Promise((resolve, reject) => {
+				if(this.state === 1) {
+					resolve(this.v);
+				} else if(this.state === 2) {
+					reject(this.v);
+				} else {
+					this.chained.push({reject, resolve});
+				}
+			});
+		}
+
+		static resolve(v) {
+			return new SharedPromise(Promise.resolve(v));
+		}
+
+		static reject(v) {
+			return new SharedPromise(Promise.reject(v));
+		}
 	}
 
 	class Results {
@@ -150,6 +214,8 @@
 		}
 
 		pow(power, {pCutoff = 0} = {}) {
+			check_integer('Invalid power', power, 0);
+
 			if(power === 0) {
 				return new Results(
 					this.engine,
@@ -159,9 +225,7 @@
 			} else if(power === 1) {
 				return this;
 			}
-			if(power < 0 || Math.round(power) !== power) {
-				throw new Error(`Invalid power: ${power}`);
-			}
+
 			return this.engine.queue_task({
 				cumulativeP: this.cumulativeP,
 				pCutoff,
@@ -209,7 +273,7 @@
 			this.engine = engine || new WebWorkerEngine();
 			this.pCutoff = pCutoff;
 
-			const {fullAudience, prizeMap} = extractPrizeMap(prizes, audience);
+			const {fullAudience, prizeMap} = extract_prizemap(prizes, audience);
 
 			this.m = fullAudience;
 
@@ -217,6 +281,8 @@
 			this.rarePrizes = Array.from(prizeMap.entries())
 				.map(([value, count]) => ({count, value}))
 				.sort((a, b) => (a.count - b.count));
+
+			this.cache = new Map();
 		}
 
 		audience() {
@@ -228,19 +294,23 @@
 		}
 
 		enter(tickets) {
-			if(tickets < 0 || tickets > this.m) {
-				throw new Error('Invalid ticket count');
+			check_integer('Invalid ticket count', tickets, 0, this.m);
+
+			let cached = this.cache.get(tickets);
+			if(!cached) {
+				cached = new SharedPromise(this.engine.queue_task({
+					pCutoff: this.pCutoff,
+					prizes: this.rarePrizes,
+					tickets,
+					type: 'generate',
+				}).then(({cumulativeP}) => new Results(
+					this.engine,
+					tickets,
+					cumulativeP
+				)));
+				this.cache.set(tickets, cached);
 			}
-			return this.engine.queue_task({
-				pCutoff: this.pCutoff,
-				prizes: this.rarePrizes,
-				tickets,
-				type: 'generate',
-			}).then(({cumulativeP}) => new Results(
-				this.engine,
-				tickets,
-				cumulativeP
-			));
+			return cached.promise();
 		}
 	}
 
