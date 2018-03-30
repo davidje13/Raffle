@@ -24,6 +24,12 @@ body {
 	margin: 20px;
 }
 #output .head {
+	margin-top: 1em;
+	font-weight: bolder;
+	font-size: 1.5em;
+}
+#output .subhead {
+	margin-top: 0.5em;
 	font-weight: bolder;
 }
 .right {
@@ -31,6 +37,7 @@ body {
 }
 </style>
 <script src="src/Raffle.js"></script>
+<script src="src/Graph.js"></script>
 <script src="src/nsi.js"></script>
 <script>
 
@@ -40,6 +47,16 @@ function money(v) {
 
 function apr(monthly, capital) {
 	return (Math.pow(1 + monthly / capital, 12) - 1) * 100;
+}
+
+function odds(p) {
+	if(p >= 0.01) {
+		return (p * 100).toFixed(2) + '%';
+	} else if(p >= 1e-10) {
+		return '~1 in ' + Math.round(1 / p);
+	} else {
+		return 'negligible';
+	}
 }
 
 window.addEventListener('load', () => {
@@ -52,13 +69,16 @@ window.addEventListener('load', () => {
 
 	const raffles = [];
 
-	function add_message(m, cls = '') {
-		const t = document.createTextNode(m);
+	function add_dom(o, cls = '') {
 		const d = document.createElement('div');
-		d.appendChild(t);
+		d.appendChild(o);
 		d.setAttribute('class', cls);
 		output.appendChild(d);
 		return d;
+	}
+
+	function add_message(m, cls = '') {
+		return add_dom(document.createTextNode(m), cls);
 	}
 
 	function add_raffle(name, seed) {
@@ -73,6 +93,21 @@ window.addEventListener('load', () => {
 		opt.setAttribute('value', index);
 		raffleSelect.appendChild(opt);
 		return index;
+	}
+
+	function get_graph_pvalue_data(result) {
+		const data = [{x: 0, y: 1}];
+		let lastV = null;
+		for(const i of result.values()) {
+			const p = result.range_probability(i, Number.POSITIVE_INFINITY);
+			if(lastV !== null) {
+				data.push({x: lastV, y: p});
+			}
+			data.push({x: i, y: p});
+			lastV = i;
+		}
+		data.push({x: lastV, y: 0});
+		return data;
 	}
 
 	function run(raffle, tickets) {
@@ -94,64 +129,93 @@ window.addEventListener('load', () => {
 		add_message('Calculating for audience of ' + raffle.audience() + '\u2026');
 
 		return Promise.all(games).then((allResults) => {
+			const multi = (allResults.length > 1);
+
+			const graphW = multi ? 300 : 800;
+			const graphH = multi ? 40 : 100;
+			const graphLimit = 10000;
+			const graphRX = {max: graphLimit, min: 0};
+			const graphRY = {max: 1, min: 0};
+
 			for(const {result1, result12} of allResults) {
 				const tickets = result1.tickets();
 				add_message('Tickets: ' + tickets, 'head');
 
 				const mean1 = result1.mean();
-				const mean12 = result12.mean();
 				const median1 = result1.median();
-				const median12 = result12.median();
 				const mode1 = result1.mode();
-				const mode12 = result12.mode();
+
+				add_message('1 Month', 'subhead');
+				add_message(
+					'Averages:'
+					+ ' Mean: ' + money(mean1)
+					+ ' (' + apr(mean1, tickets).toFixed(3) + '% APR)'
+					+ ' Median: ' + money(median1)
+					+ ' Mode: ' + money(mode1)
+				);
 
 				add_message(
-					'Mean: 1 month: ' + money(mean1)
-					+ ' (' + apr(mean1, tickets).toFixed(3) + '% APR)'
-					+ ', 12 months: ' + money(mean12)
-					+ ' (' + (mean12 * 100 / tickets).toFixed(3) + '% APR)'
-				);
-				add_message(
-					'Median: 1 month: ' + money(median1)
-					+ ', 12 months: ' + money(median12)
-					+ ' (' + (median12 * 100 / tickets).toFixed(3) + '% APR)'
-				);
-				add_message(
-					'Mode: 1 month: ' + money(mode1)
-					+ ', 12 months: ' + money(mode12)
-					+ ' (' + (mode12 * 100 / tickets).toFixed(3) + '% APR)'
-				);
-				add_message(
-					'1 Month Percentiles: '
+					'Percentiles: '
 					+ '0th = ' + money(result1.percentile(0)) + ', '
 					+ '25th = ' + money(result1.percentile(25)) + ', '
 					+ '50th = ' + money(result1.percentile(50)) + ', '
 					+ '75th = ' + money(result1.percentile(75)) + ', '
 					+ '100th = ' + money(result1.percentile(100))
 				);
+
+				const g1 = new Graph(graphW, graphH);
+				g1.set(get_graph_pvalue_data(result1));
+				g1.set_x_range(graphRX);
+				g1.set_y_range(graphRY);
+				g1.render();
+				add_dom(g1.dom());
 				add_message(
-					'12 Month Percentiles: '
+					'Odds: = ' + money(0) + ': '
+					+ odds(result1.exact_probability(0))
+					+ ', >= ' + money(graphLimit) + ': '
+					+ odds(result1.range_probability(
+						graphLimit,
+						Number.POSITIVE_INFINITY
+					))
+				);
+
+				const mean12 = result12.mean();
+				const median12 = result12.median();
+				const mode12 = result12.mode();
+
+				add_message('12 Months', 'subhead');
+				add_message(
+					'Averages:'
+					+ ' Mean: ' + money(mean12)
+					+ ' (' + (mean12 * 100 / tickets).toFixed(3) + '% APR)'
+					+ ' Median: ' + money(median12)
+					+ ' (' + (median12 * 100 / tickets).toFixed(3) + '% APR)'
+					+ ' Mode: ' + money(mode12)
+					+ ' (' + (mode12 * 100 / tickets).toFixed(3) + '% APR)'
+				);
+				add_message(
+					'Percentiles: '
 					+ '0th = ' + money(result12.percentile(0)) + ', '
 					+ '25th = ' + money(result12.percentile(25)) + ', '
 					+ '50th = ' + money(result12.percentile(50)) + ', '
 					+ '75th = ' + money(result12.percentile(75)) + ', '
 					+ '100th = ' + money(result12.percentile(100))
 				);
-			}
 
-			const result1 = allResults[allResults.length - 1].result1;
-			add_message('Breakdown for tickets: ' + result1.tickets(), 'head');
-			for(let i = result1.min(); i <= result1.max(); ++ i) {
-				const pE = result1.exact_probability(i);
-				if(pE < 0.00000001) {
-					continue;
-				}
-				const pR = result1.range_probability(i, Number.POSITIVE_INFINITY);
+				const g12 = new Graph(graphW, graphH);
+				g12.set(get_graph_pvalue_data(result12));
+				g12.set_x_range(graphRX);
+				g12.set_y_range(graphRY);
+				g12.render();
+				add_dom(g12.dom());
 				add_message(
-					'= ' + money(i) + ': ' +
-					(pE * 100).toFixed(4) + '%' +
-					' >= ' + money(i) + ': ' +
-					(pR * 100).toFixed(4) + '%'
+					'Odds: = ' + money(0) + ': '
+					+ odds(result12.exact_probability(0))
+					+ ', >= ' + money(graphLimit) + ': '
+					+ odds(result12.range_probability(
+						graphLimit,
+						Number.POSITIVE_INFINITY
+					))
 				);
 			}
 		});
