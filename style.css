@@ -1,0 +1,174 @@
+body {
+	font-family: sans-serif;
+	margin: 15px;
+	padding: 0;
+}
+
+section {
+	display: inline-block;
+	vertical-align: top;
+	margin: 5px;
+	padding: 5px;
+	background: #E6E6E6;
+}
+
+.options {
+	font-size: 11px;
+	line-height: 16px;
+}
+.optarea {
+	display: inline-block;
+	vertical-align: top;
+}
+.optarea.left {
+	margin: 0 10px 0 0;
+}
+.optarea.right {
+	float: right;
+	margin: 0 5px;
+}
+
+select, button, input {
+	margin: 0;
+}
+
+input[type=number] {
+	width: 60px;
+	border: 1px solid #AAAAAA;
+	padding: 2px 3px;
+	box-sizing: border-box;
+	height: 20px;
+	vertical-align: baseline;
+}
+
+input[type=radio] {
+	vertical-align: top;
+	margin-right: 5px;
+	height: 20px;
+}
+
+label {
+	display: inline-block;
+	margin-bottom: 5px;
+	min-height: 20px;
+}
+
+label span {
+	display: inline-block;
+	vertical-align: top;
+	padding-top: 4px;
+	white-space: no-wrap;
+}
+
+.odds {
+	margin-top: 2px;
+}
+
+.odds_row {
+	margin-left: 5px;
+	width: 50px;
+	line-height: 20px;
+}
+
+.odds_value {
+	display: inline-block;
+	vertical-align: baseline;
+	width: 100px;
+	line-height: 20px;
+	text-align: right;
+}
+
+.graph {
+	display: inline-block;
+	vertical-align: top;
+	margin: 0 5px 0 0;
+	position: relative;
+}
+
+.graph canvas {
+	background: #FFFFFF;
+	border:1px solid #AAAAAA;
+}
+
+.graph .probability {
+	font-size: 11px;
+	line-height: 20px;
+	margin: 0 5px;
+}
+
+.graph .probability.right {
+	float: right;
+}
+
+.loader {
+	position: absolute;
+	top: 40px;
+	right: 20px;
+	width: 20px;
+	height: 20px;
+	margin: -10px;
+	box-sizing: border-box;
+	border: 2px solid transparent;
+	border-top-color: rgba(0, 0, 0, 0.5);
+	border-bottom-color: rgba(0, 0, 0, 0.5);
+	border-radius: 100%;
+	animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+	100% {
+		transform: rotate(360deg)
+	}
+}
+
+ul.key {
+	display: inline-block;
+	vertical-align: top;
+	background: #F8F8F8;
+	margin: 0;
+	padding: 0 5px 5px;
+	font-size: 11px;
+	line-height: 16px;
+	list-style: none;
+}
+
+ul.key li {
+	margin: 0;
+	padding: 0;
+}
+
+ul.key li.header {
+	margin: 5px 0 0;
+	padding: 0;
+	font-size: 1em;
+	font-weight: bolder;
+}
+
+.key_value {
+	float: right;
+	text-align: right;
+}
+
+.key_value span {
+	display: inline-block;
+	width: 70px;
+}
+
+.tabulate {
+	float: right;
+}
+
+#output {
+	font: 1em monospace;
+	line-height: 1.4;
+	margin: 20px;
+}
+#output .head {
+	margin-top: 1em;
+	font-weight: bolder;
+	font-size: 1.5em;
+}
+#output .subhead {
+	margin-top: 0.5em;
+	font-weight: bolder;
+}

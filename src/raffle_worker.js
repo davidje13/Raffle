@@ -4,7 +4,7 @@
 (() => {
 	/* eslint-enable max-statements */
 
-	const post = {fn: () => { /* No-op */ }};
+	const post = {fn: () => null};
 	let perf_now = () => 0;
 
 	function send_profiling(name, millis) {

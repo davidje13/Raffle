@@ -29,6 +29,7 @@
 
 			this.canvas = make_canvas(width, height);
 			this.context = this.canvas.getContext('2d');
+			this.context.lineCap = 'square';
 			this.data = [];
 			this.bounds = {
 				maxx: 0,
@@ -66,7 +67,7 @@
 		set_x_range({
 			min = null,
 			max = null,
-			log = Number.POSITIVE_INFINITY,
+			log = null,
 		}) {
 			if(min !== null) {
 				this.bounds.minx = min;
@@ -74,14 +75,16 @@
 			if(max !== null) {
 				this.bounds.maxx = max;
 			}
-			this.logX = log;
+			if(log !== null) {
+				this.logX = log;
+			}
 			this.update_log_scales();
 		}
 
 		set_y_range({
 			min = null,
 			max = null,
-			log = Number.POSITIVE_INFINITY,
+			log = null,
 		}) {
 			if(min !== null) {
 				this.bounds.miny = min;
@@ -89,23 +92,28 @@
 			if(max !== null) {
 				this.bounds.maxy = max;
 			}
-			this.logY = log;
+			if(log !== null) {
+				this.logY = log;
+			}
 			this.update_log_scales();
 		}
 
-		set(data) {
+		set(data, {updateBounds = true} = {}) {
 			this.data = data;
+			if(!updateBounds) {
+				return;
+			}
 			const b = this.bounds;
 			b.minx = Number.POSITIVE_INFINITY;
 			b.miny = Number.POSITIVE_INFINITY;
 			b.maxx = Number.NEGATIVE_INFINITY;
 			b.maxy = Number.NEGATIVE_INFINITY;
-			this.data.forEach(({x, y}) => {
+			this.data.forEach(({points}) => points.forEach(({x, y}) => {
 				b.minx = Math.min(b.minx, x);
 				b.miny = Math.min(b.miny, y);
 				b.maxx = Math.max(b.maxx, x);
 				b.maxy = Math.max(b.maxy, y);
-			});
+			}));
 			this.update_log_scales();
 		}
 
@@ -173,16 +181,19 @@
 		}
 
 		render() {
-			this.context.lineWidth = this.lineW * res;
 			this.context.clearRect(0, 0, this.width, this.height);
-			this.context.beginPath();
-			let lastPt = null;
-			this.data.forEach((pt) => {
-				const p = this.coord_to_pt(pt);
-				this.draw_line(lastPt, p);
-				lastPt = p;
+			this.data.forEach(({points, style, width}) => {
+				this.context.strokeStyle = style || '#000000';
+				this.context.lineWidth = (width || this.lineW) * res;
+				this.context.beginPath();
+				let lastPt = null;
+				points.forEach((pt) => {
+					const p = this.coord_to_pt(pt);
+					this.draw_line(lastPt, p);
+					lastPt = p;
+				});
+				this.context.stroke();
 			});
-			this.context.stroke();
 		}
 
 		dom() {
