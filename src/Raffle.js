@@ -144,6 +144,10 @@
 			return this.vmax;
 		}
 
+		values() {
+			return this.cumulativeP.map(({value}) => value);
+		}
+
 		p_below(x) {
 			if(x <= this.vmin) {
 				return 0;

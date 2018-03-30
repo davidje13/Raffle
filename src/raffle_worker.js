@@ -112,6 +112,7 @@
 
 	function apply_distribution(prob, audience, {value, count}, pCutoff) {
 		const limit = prob.length;
+		const pCutoff2 = pCutoff * pCutoff;
 		let totalTm = 0;
 
 		for(let n = limit - 1; (n --) > 0;) {
@@ -131,7 +132,7 @@
 				}
 				for(let i = 1; i < odds.length; ++ i) {
 					const pp = p * odds[i];
-					if(pp > 0) {
+					if(pp > pCutoff2) {
 						accumulate(prob[n + i], v + i * value, pp);
 					}
 				}
