@@ -12,6 +12,71 @@ section {
 	background: #E6E6E6;
 }
 
+section.raffle_select {
+	float: right;
+}
+
+section.raffle_select ul.preview {
+	margin: 5px 0;
+	background: #FFFFFF;
+	min-height: 100px;
+	max-height: 400px;
+	overflow: auto;
+	border: 1px solid #AAAAAA;
+	padding: 0;
+	list-style: none;
+	font-size: 12px;
+	line-height: 20px;
+}
+
+section.raffle_select ul.preview li {
+	margin: 0;
+	padding: 0;
+	min-height: 20px;
+}
+
+section.raffle_select ul.preview li .value,
+section.raffle_select ul.preview li .count {
+	display: inline-block;
+	text-align: right;
+	padding: 0 5px;
+	width: 50%;
+	box-sizing: border-box;
+}
+
+section.raffle_select ul.preview li:nth-child(even) {
+	background: #F8F8F8;
+}
+
+form {
+	margin: 0;
+	padding: 0;
+}
+
+h1 {
+	margin: 0 0 15px;
+	font-size: 1.4em;
+	font-weight: normal;
+}
+
+p {
+	margin: 10px 0 0;
+}
+
+.info {
+	font-size: 14px;
+	background: transparent;
+}
+
+a:link,a:visited {
+	text-decoration: underline;
+	color: inherit;
+}
+a:active,a:hover {
+	text-decoration: none;
+	color: inherit;
+}
+
 .options {
 	font-size: 11px;
 	line-height: 16px;

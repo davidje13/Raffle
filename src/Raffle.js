@@ -376,7 +376,7 @@
 		}
 
 		prizes() {
-			return this.rarePrizes;
+			return this.rarePrizes.slice();
 		}
 
 		enter(tickets) {
