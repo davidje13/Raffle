@@ -7,6 +7,7 @@
 <script src="src/NSI.js"></script>
 <script src="src/RaffleSelectUI.js"></script>
 <script src="src/ProbabilityUI.js"></script>
+<script src="src/InvestmentUI.js"></script>
 <title>Raffle Predictor</title>
 <script>
 
@@ -38,9 +39,18 @@ window.addEventListener('load', () => {
 		maxTickets: 50000,
 		ticketCost: 1,
 	});
+	const investmentUI = new InvestmentUI({
+		GraphClass: Graph,
+		markers,
+		maxTickets: 50000,
+		minTickets: 100,
+		stepTickets: 100,
+		ticketCost: 1,
+	});
 
 	raffleSelectUI.set_callback((raffle) => {
 		probabilityUI.set_raffle(raffle);
+		investmentUI.set_raffle(raffle);
 	});
 
 	raffleSelectUI.add_loader('Load latest prizes from NS&I', () =>
@@ -93,6 +103,7 @@ window.addEventListener('load', () => {
 
 	document.body.appendChild(raffleSelectUI.dom());
 	document.body.appendChild(probabilityUI.dom());
+	document.body.appendChild(investmentUI.dom());
 });
 </script>
 </head>

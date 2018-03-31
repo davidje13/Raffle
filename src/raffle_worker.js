@@ -7,7 +7,15 @@
 	const post = {fn: () => null};
 	let perf_now = () => 0;
 
-	function send_profiling(name, millis) {
+	const DEBUG = 1;
+	const INFO = 2;
+
+	const profilingLevel = INFO;
+
+	function send_profiling(name, millis, level) {
+		if(level < profilingLevel) {
+			return;
+		}
 		post.fn({
 			message: `${(millis * 0.001).toFixed(4)}s : ${name}`,
 			type: 'info',
@@ -138,7 +146,7 @@
 				}
 			});
 		}
-		send_profiling('Calculate odds', totalTm);
+		send_profiling('Calculate odds', totalTm, DEBUG);
 	}
 
 	function calculate_final_odds(total, targets, samples) {
@@ -211,7 +219,7 @@
 			apply_distribution(prob, remainingAudience, prize, pCutoff);
 			const t1 = perf_now();
 			remainingAudience -= prize.count;
-			send_profiling(`Distribute ${prize.value}`, t1 - t0);
+			send_profiling(`Distribute ${prize.value}`, t1 - t0, DEBUG);
 		}
 
 		const t0 = perf_now();
@@ -219,7 +227,7 @@
 		apply_final_distribution(prob, remainingAudience, lastPrize);
 		const t1 = perf_now();
 
-		send_profiling('Accumulate', t1 - t0);
+		send_profiling('Accumulate', t1 - t0, DEBUG);
 
 		return prob[tickets];
 	}
@@ -324,18 +332,21 @@
 	function message_handler(data) {
 		const tB = perf_now();
 		let result = null;
+		let label = data.type;
 
 		switch(data.type) {
 		case 'generate':
 			result = message_handler_generate(data);
+			label += ` ${data.tickets}`;
 			break;
 		case 'pow':
 			result = message_handler_pow(data);
+			label += ` ${data.power}`;
 			break;
 		}
 
 		const tE = perf_now();
-		send_profiling(`Total for ${data.type}`, tE - tB);
+		send_profiling(`Total for ${label}`, tE - tB, INFO);
 
 		return result;
 	}

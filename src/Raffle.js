@@ -217,7 +217,7 @@
 			return bestValue;
 		}
 
-		pow(power, {pCutoff = 0} = {}) {
+		pow(power, {pCutoff = 0, priority = 10} = {}) {
 			check_integer('Invalid power', power, 0);
 
 			if(power === 0) {
@@ -235,7 +235,7 @@
 				pCutoff,
 				power,
 				type: 'pow',
-			}).then(({cumulativeP}) => new Results(
+			}, priority).then(({cumulativeP}) => new Results(
 				this.engine,
 				this.n,
 				cumulativeP
@@ -304,7 +304,7 @@
 			}
 		}
 
-		queue_task(trigger) {
+		queue_task(trigger, priority) {
 			return new Promise((resolve, reject) => {
 				for(const thread of this.threads) {
 					if(thread.resolve === null) {
@@ -312,7 +312,16 @@
 						return;
 					}
 				}
-				this.queue.push({reject, resolve, trigger});
+				const o = {priority, reject, resolve, trigger};
+				if(priority === 0) {
+					this.queue.push(o);
+				} else {
+					const i = find_last_binary(
+						this.queue,
+						(x) => (x.priority >= priority)
+					);
+					this.queue.splice(i, 0, o);
+				}
 			});
 		}
 
@@ -379,7 +388,7 @@
 			return this.rarePrizes.slice();
 		}
 
-		enter(tickets) {
+		enter(tickets, {priority = 0} = {}) {
 			check_integer('Invalid ticket count', tickets, 0, this.m);
 
 			let cached = this.cache.get(tickets);
@@ -389,7 +398,7 @@
 					prizes: this.rarePrizes,
 					tickets,
 					type: 'generate',
-				}).then(({cumulativeP}) => new Results(
+				}, priority).then(({cumulativeP}) => new Results(
 					this.engine,
 					tickets,
 					cumulativeP

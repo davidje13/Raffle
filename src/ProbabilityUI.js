@@ -260,7 +260,7 @@
 			this.resultNonce = nonce;
 			this.result = null;
 			this.power = null;
-			this.raffle.enter(tickets).then((result) => {
+			this.raffle.enter(tickets, {priority: 1}).then((result) => {
 				if(this.resultNonce === nonce) {
 					this.result = result;
 					this.lastMonths = null;
@@ -283,14 +283,15 @@
 			const nonce = {};
 			this.powerNonce = nonce;
 			this.power = null;
-			this.result.pow(months, {pCutoff: 1e-10}).then((result) => {
-				if(this.powerNonce === nonce) {
-					this.power = result;
-					this.lastOddsRequest = null;
-					this.redraw_graph();
-					this.update();
-				}
-			});
+			this.result.pow(months, {pCutoff: 1e-10, priority: 11})
+				.then((result) => {
+					if(this.powerNonce === nonce) {
+						this.power = result;
+						this.lastOddsRequest = null;
+						this.redraw_graph();
+						this.update();
+					}
+				});
 		}
 
 		update_odds_request(oddsRequest) {
