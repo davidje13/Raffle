@@ -213,19 +213,25 @@
 
 			this.loaded = 0;
 			this.results.length = 0;
+			const nonce = {};
+			this.resultsNonce = nonce;
 			this.ticketOrder.forEach(({i, v}) => {
 				this.results[i] = null;
 				this.raffle.enter(v)
 					.then((result) => result.pow(months, {pCutoff: 1e-10}))
 					.then((result) => {
-						this.results[i] = result;
-						this.lastShow = null;
-						++ this.loaded;
-						this.debounce_got_result();
+						if(this.resultsNonce === nonce) {
+							this.results[i] = result;
+							this.lastShow = null;
+							++ this.loaded;
+							this.debounce_got_result();
+						}
 					})
 					.catch(() => {
-						++ this.loaded;
-						this.debounce_got_result();
+						if(this.resultsNonce === nonce) {
+							++ this.loaded;
+							this.debounce_got_result();
+						}
 					});
 			});
 		}
