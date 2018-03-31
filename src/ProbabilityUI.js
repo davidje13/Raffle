@@ -61,34 +61,18 @@
 		return o;
 	}
 
-	function to_apr(ratio, months) {
-		return Math.pow(1 + ratio, 12 / months) - 1;
-	}
-
 	function only12(ratio, months) {
 		return (months === 12) ? ratio : Number.NaN;
 	}
 
-	const DEFAULT_MARKERS = [
-		{name: 'Averages'},
-		{col: '#CC0000', name: 'Mean', scale: to_apr, value: (r) => r.mean()},
-		{col: '#0033CC', name: 'Median', value: (r) => r.median()},
-		{col: '#009900', name: 'Mode', value: (r) => r.mode()},
-
-		{name: 'Percentiles'},
-		{col: '#CC9900', name: '25th', value: (r) => r.percentile(25)},
-		{col: '#9933FF', name: '75th', value: (r) => r.percentile(75)},
-		{col: '#009999', name: '99th', value: (r) => r.percentile(99)},
-	];
-
-	class UI {
+	class ProbabilityUI {
 		constructor({
 			GraphClass,
-			defaultTickets,
+			defaultTickets = 1,
 			graphLimit,
+			markers = [],
 			maxTickets,
-			ticketCost,
-			markers = DEFAULT_MARKERS,
+			ticketCost = 1,
 		}) {
 			this.GraphClass = GraphClass;
 			this.maxMonths = 36;
@@ -107,16 +91,19 @@
 
 			this.update = this.update.bind(this);
 
-			this.section = make('section');
-			this.section.appendChild(this.build_options());
-			this.section.appendChild(this.build_graph());
-			this.section.appendChild(this.build_key(markers));
-
-			this.section.appendChild(make('br'));
-			this.section.appendChild(make('button', {
-				'class': 'tabulate',
-				'disabled': 'disabled',
-			}, ['Tabulate']));
+			const form = make('form', {'action': '#'}, [
+				this.build_options(),
+				this.build_graph(),
+				this.build_key(markers),
+				make('br'),
+				make('button', {
+					'class': 'tabulate',
+					'disabled': 'disabled',
+					'type': 'button',
+				}, ['Tabulate']),
+			]);
+			form.addEventListener('submit', (e) => e.preventDefault());
+			this.section = make('section', {'class': 'probability'}, [form]);
 		}
 
 		money(v) {
@@ -207,6 +194,8 @@
 			this.fP0 = makeText();
 			this.fPlim = makeText();
 			this.loader = make('div', {'class': 'loader'});
+			this.loader.style.top = '40px';
+			this.loader.style.right = '20px';
 
 			return make('div', {'class': 'graph'}, [
 				make('span', {'class': 'probability left'}, [
@@ -392,8 +381,8 @@
 	}
 
 	if(typeof module === 'object') {
-		module.exports = UI;
+		module.exports = ProbabilityUI;
 	} else {
-		window.UI = UI;
+		window.ProbabilityUI = ProbabilityUI;
 	}
 })();
