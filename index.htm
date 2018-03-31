@@ -27,7 +27,7 @@ window.addEventListener('load', () => {
 		{name: 'Percentiles'},
 		{col: '#CC9900', name: '25th', value: (r) => r.percentile(25)},
 		{col: '#9933FF', name: '75th', value: (r) => r.percentile(75)},
-		{col: '#009999', name: '99th', value: (r) => r.percentile(99)},
+		{col: '#009999', name: '95th', value: (r) => r.percentile(95)},
 	];
 
 	const raffleSelectUI = new RaffleSelectUI();

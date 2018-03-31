@@ -197,7 +197,7 @@
 			this.graph.set_y_label(
 				'p(\u2265value)',
 				(v) => v.toFixed(3),
-				0.01
+				0.001
 			);
 
 			this.fP0 = makeText();

@@ -169,11 +169,6 @@
 				(v) => v.toFixed(0),
 				1
 			);
-			this.graph.set_y_label(
-				`Value (${this.currencySymbol})`,
-				(v) => (this.currencySymbol + v.toFixed(0)),
-				1
-			);
 
 			this.loader = make('div', {'class': 'loader'});
 			this.loader.style.top = '20px';
@@ -308,6 +303,20 @@
 			}));
 
 			const show = this.lastShow;
+
+			if(show === SHOW_VALUE) {
+				this.graph.set_y_label(
+					`Value (${this.currencySymbol})`,
+					(v) => (this.currencySymbol + v.toFixed(0)),
+					1
+				);
+			} else {
+				this.graph.set_y_label(
+					'Value / Capital (%)',
+					(v) => `${v.toFixed(3)}%`,
+					0.001
+				);
+			}
 
 			this.results.forEach((r) => {
 				if(!r) {
