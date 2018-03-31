@@ -10,6 +10,7 @@ section {
 	margin: 5px;
 	padding: 5px;
 	background: #E6E6E6;
+	position: relative;
 }
 
 section.raffle_select {
@@ -143,25 +144,24 @@ label span {
 	text-align: right;
 }
 
-.graph {
+.graph_hold {
 	display: inline-block;
 	vertical-align: top;
 	margin: 0 5px 0 0;
 	position: relative;
 }
 
-.graph canvas {
-	background: #FFFFFF;
-	border:1px solid #AAAAAA;
-}
-
-.graph .probability {
+.graph_hold .probability {
 	font-size: 11px;
 	line-height: 20px;
 	margin: 0 5px;
 }
 
-.graph .probability.right {
+.graph_hold .probability.left {
+	margin-left: 65px;
+}
+
+.graph_hold .probability.right {
 	float: right;
 }
 
@@ -188,7 +188,7 @@ ul.key {
 	display: inline-block;
 	vertical-align: top;
 	background: #F8F8F8;
-	margin: 0;
+	margin: 0 0 30px;
 	padding: 0 5px 5px;
 	font-size: 11px;
 	line-height: 16px;
@@ -218,20 +218,78 @@ ul.key li.header {
 }
 
 .tabulate {
-	float: right;
+	position: absolute;
+	bottom: 5px;
+	right: 5px;
 }
 
-#output {
-	font: 1em monospace;
-	line-height: 1.4;
-	margin: 20px;
+.graph canvas {
+	background: #FFFFFF;
+	border:1px solid #AAAAAA;
 }
-#output .head {
-	margin-top: 1em;
-	font-weight: bolder;
-	font-size: 1.5em;
+
+.graph {
+	position: relative;
+	padding: 0 0 40px 60px;
 }
-#output .subhead {
-	margin-top: 0.5em;
-	font-weight: bolder;
+
+.graph .label {
+	position: absolute;
+	font-size: 10px;
+	text-align: center;
+	line-height: 1;
+}
+
+.graph .label.x {
+	bottom: 0;
+	left: 60px;
+	right: 0;
+}
+
+.graph .label.y {
+	position: absolute;
+	width: 200px;
+	left: -100px;
+	top: calc(50% - 20px);
+	margin-top: -0.5em;
+	margin-left: 0.5em;
+	transform: rotate(-90deg);
+}
+
+.graph .values {
+	position: absolute;
+	font-size: 10px;
+	line-height: 1;
+}
+
+.graph .values span {
+	position: absolute;
+}
+
+.graph .values.x {
+	bottom: 20px;
+	left: 61px;
+	right: 1px;
+	height: 15px;
+}
+
+.graph .values.x span {
+	width: 50px;
+	top: 0;
+	margin: 0 -25px;
+	text-align: center;
+}
+
+.graph .values.y {
+	top: 1px;
+	bottom: 41px;
+	left: 20px;
+	width: 35px;
+}
+
+.graph .values.y span {
+	right: 0;
+	height: 10px;
+	margin: -5px 0;
+	text-align: right;
 }

@@ -95,7 +95,6 @@
 				this.build_options(),
 				this.build_graph(),
 				this.build_key(markers),
-				make('br'),
 				make('button', {
 					'class': 'tabulate',
 					'disabled': 'disabled',
@@ -190,6 +189,16 @@
 			this.graph = new this.GraphClass(498, 148);
 			this.graph.set_x_range({max: this.graphLimit, min: 0});
 			this.graph.set_y_range({max: 1, min: 0});
+			this.graph.set_x_label(
+				`Value (${this.currencySymbol})`,
+				(v) => (this.currencySymbol + v.toFixed(0)),
+				1
+			);
+			this.graph.set_y_label(
+				'p(\u2265value)',
+				(v) => v.toFixed(3),
+				0.01
+			);
 
 			this.fP0 = makeText();
 			this.fPlim = makeText();
@@ -197,7 +206,7 @@
 			this.loader.style.top = '40px';
 			this.loader.style.right = '20px';
 
-			return make('div', {'class': 'graph'}, [
+			return make('div', {'class': 'graph_hold'}, [
 				make('span', {'class': 'probability left'}, [
 					`p(${this.money(0)}) = `,
 					this.fP0,

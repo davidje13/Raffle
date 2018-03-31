@@ -2,11 +2,37 @@
 
 (() => {
 	const LOG_LIMIT = 1e6;
+	const LOG_AXIS_LIMIT = 1e2;
 	const res = window.devicePixelRatio || 1;
 	window.devicePixelRatio = 1;
 
+	function makeText(text = '') {
+		return document.createTextNode(text);
+	}
+
+	function setAttributes(target, attrs) {
+		for(const k in attrs) {
+			if(Object.prototype.hasOwnProperty.call(attrs, k)) {
+				target.setAttribute(k, attrs[k]);
+			}
+		}
+	}
+
+	function make(type, attrs = {}, children = []) {
+		const o = document.createElement(type);
+		setAttributes(o, attrs);
+		for(const c of children) {
+			if(typeof c === 'string') {
+				o.appendChild(makeText(c));
+			} else {
+				o.appendChild(c);
+			}
+		}
+		return o;
+	}
+
 	function make_canvas(width, height) {
-		const canvas = document.createElement('canvas');
+		const canvas = make('canvas');
 		canvas.width = width * res;
 		canvas.height = height * res;
 		canvas.style.width = `${width}px`;
@@ -14,88 +40,153 @@
 		return canvas;
 	}
 
+	function set_range(v, {min = null, max = null, log = null}) {
+		if(min !== null) {
+			v.min = min;
+		}
+		if(max !== null) {
+			v.max = max;
+		}
+		if(log !== null) {
+			v.log = log;
+		}
+	}
+
+	function update_log_scales(v) {
+		if(v.log < LOG_LIMIT) {
+			v.ls = Math.log(v.min + v.log);
+			v.lr = Math.log(v.max + v.log) - v.ls;
+		} else {
+			v.ls = v.min;
+			v.lr = v.max - v.min;
+		}
+	}
+
+	function coord_to_pt(p, {log, lr, ls, r, s}) {
+		const pp = (log < LOG_LIMIT) ? Math.log(p + log) : p;
+		return (pp - ls) * r / lr + s;
+	}
+
+	function pt_to_coord(p, {log, lr, ls, r, s}) {
+		const pp = (p - s) * lr / r + ls;
+		return (log < LOG_LIMIT) ? Math.exp(pp) - log : pp;
+	}
+
+	function pick_values({log, max, min, r}, {minStep}, spacing) {
+		const result = [];
+
+		if(log < LOG_AXIS_LIMIT) {
+			result.push(min);
+			result.push(max);
+		} else {
+			/*
+			 * Find the highest sample resolution with no overlaps:
+			 *
+			 * step * r / (max - min) >= spacing ; step = 10^n
+			 * n + log10(r) - log10(max - min) >= log10(spacing)
+			 * n >= log10(spacing) - log10(r) + log10(max - min)
+			 */
+
+			const lnStep = (
+				Math.log10(spacing)
+				- Math.log10(Math.abs(r))
+				+ Math.log10(max - min)
+			);
+			const step10 = Math.ceil(lnStep);
+			const step20 = Math.ceil(lnStep - Math.log10(2)) + Math.log10(2);
+			const step50 = Math.ceil(lnStep - Math.log10(5)) + Math.log10(5);
+
+			let step = Math.pow(10, Math.min(
+				step10,
+				Math.min(step20, step50)
+			));
+			if(minStep > 0) {
+				step = Math.ceil(step / minStep - 0.01) * minStep;
+				step = Math.max(step, minStep);
+			} else if(step <= 0) {
+				step = 1;
+			}
+			const begin = Math.round(min / step) * step;
+			for(let i = begin; i <= max; i += step) {
+				result.push(i);
+			}
+		}
+
+		return result;
+	}
+
 	class Graph {
 		constructor(width, height) {
-			this.width = width * res;
-			this.height = height * res;
+			this.width = width;
+			this.height = height;
 			this.lineW = 1.5;
 
-			this.vis = {
-				h: (this.lineW - height) * res,
-				w: (width - this.lineW) * res,
-				x: 0.5 * this.lineW * res,
-				y: (height - 0.5 * this.lineW) * res,
+			this.visX = {
+				log: Number.POSITIVE_INFINITY,
+				lr: 0,
+				ls: 0,
+				max: 0,
+				min: 0,
+				r: (width - this.lineW) * res,
+				s: 0.5 * this.lineW * res,
 			};
+			this.visY = {
+				log: Number.POSITIVE_INFINITY,
+				lr: 0,
+				ls: 0,
+				max: 0,
+				min: 0,
+				r: (this.lineW - height) * res,
+				s: (height - 0.5 * this.lineW) * res,
+			};
+			this.labelX = {label: '', minStep: 0, values: (v) => String(v)};
+			this.labelY = {label: '', minStep: 0, values: (v) => String(v)};
 
-			this.canvas = make_canvas(width, height);
+			this.data = [];
+
+			this.build_dom();
+		}
+
+		build_dom() {
+			this.canvas = make_canvas(this.width, this.height);
 			this.context = this.canvas.getContext('2d');
 			this.context.lineCap = 'square';
-			this.data = [];
-			this.bounds = {
-				maxx: 0,
-				maxy: 0,
-				minx: 0,
-				miny: 0,
-			};
-			this.lminx = 0;
-			this.lminy = 0;
-			this.ldx = 0;
-			this.ldy = 0;
 
-			this.logX = Number.POSITIVE_INFINITY;
-			this.logY = Number.POSITIVE_INFINITY;
+			this.fLabelX = make('div', {'class': 'label x'});
+			this.fLabelY = make('div', {'class': 'label y'});
+			this.fValuesX = make('div', {'class': 'values x'});
+			this.fValuesY = make('div', {'class': 'values y'});
+
+			this.container = make('div', {'class': 'graph'}, [
+				this.canvas,
+				this.fValuesX,
+				this.fValuesY,
+				this.fLabelX,
+				this.fLabelY,
+			]);
 		}
 
 		update_log_scales() {
-			const b = this.bounds;
-			if(this.logX < LOG_LIMIT) {
-				this.lminx = Math.log(b.minx + this.logX);
-				this.ldx = Math.log(b.maxx + this.logX) - this.lminx;
-			} else {
-				this.lminx = b.minx;
-				this.ldx = b.maxx - b.minx;
-			}
-			if(this.logY < LOG_LIMIT) {
-				this.lminy = Math.log(b.miny + this.logY);
-				this.ldy = Math.log(b.maxy + this.logY) - this.lminy;
-			} else {
-				this.lminy = b.miny;
-				this.ldy = b.maxy - b.miny;
-			}
+			update_log_scales(this.visX);
+			update_log_scales(this.visY);
 		}
 
-		set_x_range({
-			min = null,
-			max = null,
-			log = null,
-		}) {
-			if(min !== null) {
-				this.bounds.minx = min;
-			}
-			if(max !== null) {
-				this.bounds.maxx = max;
-			}
-			if(log !== null) {
-				this.logX = log;
-			}
+		set_x_range(options) {
+			set_range(this.visX, options);
 			this.update_log_scales();
 		}
 
-		set_y_range({
-			min = null,
-			max = null,
-			log = null,
-		}) {
-			if(min !== null) {
-				this.bounds.miny = min;
-			}
-			if(max !== null) {
-				this.bounds.maxy = max;
-			}
-			if(log !== null) {
-				this.logY = log;
-			}
+		set_y_range(options) {
+			set_range(this.visY, options);
 			this.update_log_scales();
+		}
+
+		set_x_label(label, values, minStep = 0) {
+			this.labelX = {label, minStep, values};
+		}
+
+		set_y_label(label, values, minStep = 0) {
+			this.labelY = {label, minStep, values};
 		}
 
 		set(data, {updateBounds = true} = {}) {
@@ -103,51 +194,46 @@
 			if(!updateBounds) {
 				return;
 			}
-			const b = this.bounds;
-			b.minx = Number.POSITIVE_INFINITY;
-			b.miny = Number.POSITIVE_INFINITY;
-			b.maxx = Number.NEGATIVE_INFINITY;
-			b.maxy = Number.NEGATIVE_INFINITY;
+			this.visX.min = Number.POSITIVE_INFINITY;
+			this.visY.min = Number.POSITIVE_INFINITY;
+			this.visX.max = Number.NEGATIVE_INFINITY;
+			this.visY.max = Number.NEGATIVE_INFINITY;
 			this.data.forEach(({points}) => points.forEach(({x, y}) => {
-				b.minx = Math.min(b.minx, x);
-				b.miny = Math.min(b.miny, y);
-				b.maxx = Math.max(b.maxx, x);
-				b.maxy = Math.max(b.maxy, y);
+				this.visX.min = Math.min(this.visX.min, x);
+				this.visY.min = Math.min(this.visY.min, y);
+				this.visX.max = Math.max(this.visX.max, x);
+				this.visY.max = Math.max(this.visY.max, y);
 			}));
 			this.update_log_scales();
 		}
 
 		coord_to_pt_x(x) {
-			const xx = (this.logX < LOG_LIMIT) ? Math.log(x + this.logX) : x;
-			return (xx - this.lminx) * this.vis.w / this.ldx + this.vis.x;
+			return coord_to_pt(x, this.visX);
 		}
 
 		coord_to_pt_y(y) {
-			const yy = (this.logY < LOG_LIMIT) ? Math.log(y + this.logY) : y;
-			return (yy - this.lminy) * this.vis.h / this.ldy + this.vis.y;
+			return coord_to_pt(y, this.visY);
 		}
 
 		coord_to_pt({x, y}) {
 			return {
-				x: this.coord_to_pt_x(x),
-				y: this.coord_to_pt_y(y),
+				x: coord_to_pt(x, this.visX),
+				y: coord_to_pt(y, this.visY),
 			};
 		}
 
 		pt_to_coord_x(x) {
-			const xx = (x - this.vis.x) * this.ldx / this.vis.w + this.lminx;
-			return (this.logX < LOG_LIMIT) ? Math.exp(xx) - this.logX : xx;
+			return pt_to_coord(x, this.visX);
 		}
 
 		pt_to_coord_y(y) {
-			const yy = (y - this.vis.y) * this.ldy / this.vis.h + this.lminy;
-			return (this.logY < LOG_LIMIT) ? Math.exp(yy) - this.logY : yy;
+			return pt_to_coord(y, this.visY);
 		}
 
 		pt_to_coord({x, y}) {
 			return {
-				x: this.pt_to_coord_x(x),
-				y: this.pt_to_coord_y(y),
+				x: pt_to_coord(x, this.visX),
+				y: pt_to_coord(y, this.visY),
 			};
 		}
 
@@ -172,7 +258,7 @@
 			} else if(
 				to.x !== from.x
 				&& to.y !== from.y
-				&& (this.logY < LOG_LIMIT || this.logX < LOG_LIMIT)
+				&& (this.visY.log < LOG_LIMIT || this.visX.log < LOG_LIMIT)
 			) {
 				this.draw_curve_line(from, to);
 			} else {
@@ -180,8 +266,25 @@
 			}
 		}
 
+		render_axes() {
+			this.fLabelX.textContent = this.labelX.label;
+			this.fLabelY.textContent = this.labelY.label;
+			this.fValuesX.textContent = '';
+			this.fValuesY.textContent = '';
+			for(const x of pick_values(this.visX, this.labelX, 60 * res)) {
+				const o = make('span', {}, [this.labelX.values(x)]);
+				o.style.left = this.coord_to_pt_x(x) / res;
+				this.fValuesX.appendChild(o);
+			}
+			for(const y of pick_values(this.visY, this.labelY, 20 * res)) {
+				const o = make('span', {}, [this.labelY.values(y)]);
+				o.style.top = this.coord_to_pt_y(y) / res;
+				this.fValuesY.appendChild(o);
+			}
+		}
+
 		render() {
-			this.context.clearRect(0, 0, this.width, this.height);
+			this.context.clearRect(0, 0, this.width * res, this.height * res);
 			this.data.forEach(({points, style, width}) => {
 				this.context.strokeStyle = style || '#000000';
 				this.context.lineWidth = (width || this.lineW) * res;
@@ -194,10 +297,11 @@
 				});
 				this.context.stroke();
 			});
+			this.render_axes();
 		}
 
 		dom() {
-			return this.canvas;
+			return this.container;
 		}
 	}
 

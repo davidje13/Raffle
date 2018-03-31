@@ -79,7 +79,6 @@
 				this.build_options(),
 				this.build_graph(),
 				this.build_key(markers),
-				make('br'),
 				make('button', {
 					'class': 'tabulate',
 					'disabled': 'disabled',
@@ -165,12 +164,22 @@
 
 		build_graph() {
 			this.graph = new this.GraphClass(498, 248);
+			this.graph.set_x_label(
+				'Tickets',
+				(v) => v.toFixed(0),
+				1
+			);
+			this.graph.set_y_label(
+				`Value (${this.currencySymbol})`,
+				(v) => (this.currencySymbol + v.toFixed(0)),
+				1
+			);
 
 			this.loader = make('div', {'class': 'loader'});
 			this.loader.style.top = '20px';
 			this.loader.style.right = '20px';
 
-			return make('div', {'class': 'graph'}, [
+			return make('div', {'class': 'graph_hold'}, [
 				this.graph.dom(),
 				this.loader,
 			]);
