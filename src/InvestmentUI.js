@@ -305,7 +305,7 @@
 					minStep: 0.0001,
 					values: this.fmtRatio,
 				});
-				this.graph.set_y_range({log: 0.005});
+				this.graph.set_y_range({log: 0.002});
 				break;
 			}
 
