@@ -36,6 +36,14 @@
 			);
 		}
 
+		static currency_symbol(currency) {
+			return UIUtils.make_formatter({
+				currency,
+				minimumFractionDigits: 0,
+				style: 'currency',
+			})(0).replace(/[0-9\-.,]/g, '');
+		}
+
 		static odds(p) {
 			if(p >= 1) {
 				return 'almost certain';

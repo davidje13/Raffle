@@ -64,7 +64,7 @@
 				style: 'percent',
 			});
 
-			this.currencySymbol = this.fmtMoney(0).replace(/[0-9\-.,]/g, '');
+			this.currencySymbol = UIUtils.currency_symbol(currencyCode);
 
 			this.raffle = null;
 			this.result = null;
