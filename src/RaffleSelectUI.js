@@ -1,7 +1,11 @@
 'use strict';
 
+if(typeof require !== 'function') {
+	window.require = (name) => window[name.replace('./', '')];
+}
+
 (() => {
-	const {UIUtils} = window;
+	const UIUtils = require('./UIUtils');
 	const {make} = UIUtils;
 
 	class RaffleSelectUI {
@@ -14,7 +18,12 @@
 			this.fmtCount = UIUtils.make_formatter({pre: '\u00D7 '});
 
 			this.raffles = [];
+			this.callback = () => null;
 
+			this.build_ui();
+		}
+
+		build_ui() {
 			this.selector = make('select');
 			this.preview = make('ul', {'class': 'preview'});
 			this.buttons = make('div');
@@ -24,8 +33,6 @@
 				this.preview,
 				this.buttons,
 			]);
-
-			this.callback = () => null;
 
 			this.selector.addEventListener('change', () => {
 				const id = Number.parseInt(this.selector.value, 10);

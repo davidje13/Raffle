@@ -364,14 +364,12 @@
 	}
 
 	function install_worker() {
-		try {
+		if(typeof self !== 'undefined') {
 			if(self.performance) {
 				perf_now = () => self.performance.now();
 			}
 			post.fn = (msg) => self.postMessage(msg);
 			self.addEventListener('message', message_listener);
-		} catch(ignored) {
-			// No self; we are not a WebWorker (probably Jasmine tests)
 		}
 	}
 

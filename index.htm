@@ -2,6 +2,8 @@
 <head>
 <link rel="stylesheet" href="style.css" />
 <link rel="icon" href="favicon.png" />
+<script src="src/SharedPromise.js"></script>
+<script src="src/WebWorkerEngine.js"></script>
 <script src="src/Raffle.js"></script>
 <script src="src/NSI.js"></script>
 
@@ -14,7 +16,7 @@
 <script>
 
 window.addEventListener('load', () => {
-	Raffle.set_engine(new Raffle.SharedWebWorkerEngine({workers: 8}));
+	Raffle.set_engine(new SharedWebWorkerEngine({workers: 8}));
 
 	function to_apr(ratio, months) {
 		return Math.pow(1 + ratio, 12 / months) - 1;

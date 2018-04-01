@@ -1,7 +1,11 @@
 'use strict';
 
+if(typeof require !== 'function') {
+	window.require = (name) => window[name.replace('./', '')];
+}
+
 (() => {
-	const {UIUtils} = window;
+	const UIUtils = require('./UIUtils');
 	const {make} = UIUtils;
 
 	function make_ticket_order(min, max, step) {
@@ -33,7 +37,7 @@
 			maxTickets,
 			minTickets,
 			stepTickets,
-			ticketCost,
+			ticketCost = 1,
 		}) {
 			this.GraphClass = GraphClass;
 			this.maxMonths = 36;
@@ -64,6 +68,10 @@
 
 			this.update = this.update.bind(this);
 
+			this.build_ui(markers);
+		}
+
+		build_ui(markers) {
 			const form = make('form', {'action': '#'}, [
 				this.build_options(),
 				this.build_graph(),

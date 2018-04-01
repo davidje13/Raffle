@@ -43,7 +43,7 @@ module.exports = {
 		'function-paren-newline': ['error', 'consistent'],
 		'generator-star-spacing': ['error'],
 		'getter-return': ['error'],
-		'global-require': ['error'],
+		'global-require': ['off'], // Need to use closures in-browser
 		'guard-for-in': ['error'],
 		'handle-callback-err': ['error'],
 		'implicit-arrow-linebreak': ['error'],

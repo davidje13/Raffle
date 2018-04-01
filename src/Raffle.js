@@ -1,6 +1,13 @@
 'use strict';
 
+if(typeof require !== 'function') {
+	window.require = (name) => window[name.replace('./', '')];
+}
+
 (() => {
+	const SharedPromise = require('./SharedPromise');
+	const {WebWorkerEngine} = require('./WebWorkerEngine');
+
 	function find_last_binary(l, fn) {
 		let p0 = 0;
 		let p1 = l.length;
@@ -24,6 +31,52 @@
 
 	function clamp(value, low, high) {
 		return Math.max(Math.min(value, high), low);
+	}
+
+	function read_cache(cache, key, genFn) {
+		const r = cache.get(key);
+		if(r) {
+			return r;
+		}
+		const generated = genFn();
+		cache.set(key, generated);
+		return generated;
+	}
+
+	function extract_cumulative_probability(pMap, pCutoff) {
+		const cumulativeP = Array.from(pMap.entries())
+			.map(([value, p]) => ({cp: 0, p, value}))
+			.filter(({p}) => (p > pCutoff))
+			.sort((a, b) => (a.value - b.value));
+
+		let totalP = 0;
+		for(let i = 0; i < cumulativeP.length; ++ i) {
+			totalP += cumulativeP[i].p;
+			cumulativeP[i].cp = totalP;
+		}
+
+		// Normalise to [0 1] to correct for numeric errors
+		cumulativeP.forEach((x) => {
+			x.cp /= totalP;
+			x.p /= totalP;
+		});
+
+		return {cumulativeP, totalP};
+	}
+
+	function mult_cp(results, pCutoff) {
+		const pMap = new Map();
+
+		results.forEach((result) => {
+			result.r.forEach((pt) => {
+				const p = result.p * pt.p;
+				if(p > pCutoff) {
+					accumulate(pMap, result.value + pt.value, p);
+				}
+			});
+		});
+
+		return extract_cumulative_probability(pMap, pCutoff).cumulativeP;
 	}
 
 	function check_integer(
@@ -73,54 +126,6 @@
 			fullAudience: audience,
 			prizeMap,
 		};
-	}
-
-	class SharedPromise {
-		constructor(promise) {
-			this.state = 0;
-			this.chained = [];
-			this.v = null;
-
-			const fullResolve = (v) => {
-				this.v = v;
-				this.state = 1;
-				this.chained.forEach(({resolve}) => resolve(v));
-				this.chained = null;
-			};
-
-			const fullReject = (v) => {
-				this.v = v;
-				this.state = 2;
-				this.chained.forEach(({reject}) => reject(v));
-				this.chained = null;
-			};
-
-			if(typeof promise === 'function') {
-				promise(fullResolve, fullReject);
-			} else {
-				promise.then(fullResolve).catch(fullReject);
-			}
-		}
-
-		promise() {
-			return new Promise((resolve, reject) => {
-				if(this.state === 1) {
-					resolve(this.v);
-				} else if(this.state === 2) {
-					reject(this.v);
-				} else {
-					this.chained.push({reject, resolve});
-				}
-			});
-		}
-
-		static resolve(v) {
-			return new SharedPromise(Promise.resolve(v));
-		}
-
-		static reject(v) {
-			return new SharedPromise(Promise.reject(v));
-		}
 	}
 
 	class Results {
@@ -217,17 +222,17 @@
 			return bestValue;
 		}
 
-		pow(power, {pCutoff = 0, priority = 10} = {}) {
+		pow(power, {pCutoff = 0, priority = 30} = {}) {
 			check_integer('Invalid power', power, 0);
 
 			if(power === 0) {
-				return new Results(
+				return Promise.resolve(new Results(
 					this.engine,
 					this.n,
 					[{cp: 1, p: 1, value: 0}]
-				);
+				));
 			} else if(power === 1) {
-				return this;
+				return Promise.resolve(this);
 			}
 
 			return this.engine.queue_task({
@@ -240,108 +245,6 @@
 				this.n,
 				cumulativeP
 			));
-		}
-	}
-
-	function worker_fn(callback) {
-		return (event) => {
-			switch(event.data.type) {
-			case 'info':
-				window.console.log(event.data.message);
-				break;
-			case 'result':
-				callback(event.data);
-				break;
-			}
-		};
-	}
-
-	class WebWorkerEngine {
-		constructor({basePath = 'src'} = {}) {
-			this.workerFilePath = `${basePath}/raffle_worker.js`;
-		}
-
-		queue_task(trigger) {
-			return new Promise((resolve) => {
-				const worker = new Worker(this.workerFilePath);
-				worker.addEventListener('message', worker_fn((data) => {
-					worker.terminate();
-					resolve(data);
-				}));
-				worker.postMessage(trigger);
-			});
-		}
-	}
-
-	class SharedWebWorkerEngine {
-		constructor({basePath = 'src', workers = 4} = {}) {
-			const workerFilePath = `${basePath}/raffle_worker.js`;
-
-			this.queue = [];
-			this.threads = [];
-			for(let i = 0; i < workers; ++ i) {
-				const thread = {
-					reject: null,
-					resolve: null,
-					run: ({reject, resolve, trigger}) => {
-						thread.reject = reject;
-						thread.resolve = resolve;
-						thread.worker.postMessage(trigger);
-					},
-					worker: new Worker(workerFilePath),
-				};
-				thread.worker.addEventListener('message', worker_fn((data) => {
-					const fn = thread.resolve;
-					if(this.queue.length > 0) {
-						thread.run(this.queue.shift());
-					} else {
-						thread.reject = null;
-						thread.resolve = null;
-					}
-					fn(data);
-				}));
-				this.threads.push(thread);
-			}
-		}
-
-		queue_task(trigger, priority) {
-			return new Promise((resolve, reject) => {
-				for(const thread of this.threads) {
-					if(thread.resolve === null) {
-						thread.run({reject, resolve, trigger});
-						return;
-					}
-				}
-				const o = {priority, reject, resolve, trigger};
-				if(priority === 0) {
-					this.queue.push(o);
-				} else {
-					const i = find_last_binary(
-						this.queue,
-						(x) => (x.priority >= priority)
-					);
-					this.queue.splice(i, 0, o);
-				}
-			});
-		}
-
-		terminate() {
-			for(const {reject} of this.queue) {
-				if(reject !== null) {
-					reject('Terminated');
-				}
-			}
-			this.queue.length = 0;
-
-			for(const thread of this.threads) {
-				if(thread.reject !== null) {
-					thread.reject('Terminated');
-					thread.reject = null;
-					thread.resolve = null;
-					thread.worker.terminate();
-				}
-			}
-			this.threads.length = 0;
 		}
 	}
 
@@ -378,6 +281,7 @@
 				.sort((a, b) => (a.count - b.count));
 
 			this.cache = new Map();
+			this.compoundCache = new Map();
 		}
 
 		audience() {
@@ -388,12 +292,11 @@
 			return this.rarePrizes.slice();
 		}
 
-		enter(tickets, {priority = 0} = {}) {
+		enter(tickets, {priority = 20} = {}) {
 			check_integer('Invalid ticket count', tickets, 0, this.m);
 
-			let cached = this.cache.get(tickets);
-			if(!cached) {
-				cached = new SharedPromise(this.engine.queue_task({
+			return read_cache(this.cache, tickets, () => (
+				new SharedPromise(this.engine.queue_task({
 					pCutoff: this.pCutoff,
 					prizes: this.rarePrizes,
 					tickets,
@@ -402,17 +305,75 @@
 					this.engine,
 					tickets,
 					cumulativeP
-				)));
-				this.cache.set(tickets, cached);
+				)))
+			)).promise();
+		}
+
+		compound(tickets, power, {
+			maxTickets = Number.POSITIVE_INFINITY,
+			pCutoff = 0,
+			priority = 10,
+			ticketCost = 1,
+		} = {}) {
+			check_integer('Invalid ticket count', tickets, 0, this.m);
+			check_integer('Invalid power', power, 0);
+
+			if(power === 0) {
+				return Promise.resolve(new Results(
+					this.engine,
+					tickets,
+					[{cp: 1, p: 1, value: 0}]
+				));
 			}
-			return cached.promise();
+
+			const optCache = read_cache(
+				this.compoundCache,
+				JSON.stringify({
+					maxTickets,
+					pCutoff,
+					priority,
+					ticketCost,
+				}),
+				() => new Map()
+			);
+
+			const ticketCache = read_cache(optCache, tickets, () => new Map());
+
+			const step = (res) => {
+				const promises = res.cumulativeP.map(({p, value}) => this.enter(
+					Math.min(
+						tickets + Math.floor(value / ticketCost),
+						maxTickets
+					),
+					{priority}
+				).then((r) => ({p, r: r.cumulativeP, value})));
+
+				return Promise.all(promises).then((ps) => new Results(
+					this.engine,
+					tickets,
+					mult_cp(ps, pCutoff)
+				));
+			};
+
+			let baseP = 1;
+			for(let p = power; p > 1; -- p) {
+				if(ticketCache.has(p)) {
+					baseP = p;
+					break;
+				}
+			}
+			let promise = (baseP === 1)
+				? this.enter(tickets, {priority})
+				: ticketCache.get(baseP).promise();
+
+			for(let p = baseP; p < power; ++ p) {
+				const sharedPromise = new SharedPromise(promise.then(step));
+				ticketCache.set(p + 1, sharedPromise);
+				promise = sharedPromise.promise();
+			}
+			return promise;
 		}
 	}
-
-	Object.assign(Raffle, {
-		SharedWebWorkerEngine,
-		WebWorkerEngine,
-	});
 
 	if(typeof module === 'object') {
 		module.exports = Raffle;

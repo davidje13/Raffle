@@ -1,7 +1,11 @@
 'use strict';
 
+if(typeof require !== 'function') {
+	window.require = (name) => window[name.replace('./', '')];
+}
+
 (() => {
-	const {UIUtils} = window;
+	const UIUtils = require('./UIUtils');
 	const {make, odds} = UIUtils;
 
 	function get_graph_pvalue_data(result) {
@@ -27,6 +31,11 @@
 		return (months === 12) ? ratio : Number.NaN;
 	}
 
+	const WINNINGS_TAKE = 0;
+	const WINNINGS_INVEST = 1;
+
+	const pCutoff = 1e-10;
+
 	class ProbabilityUI {
 		constructor({
 			GraphClass,
@@ -34,13 +43,14 @@
 			defaultTickets = 1,
 			graphLimit,
 			markers = [],
-			maxTickets,
+			maxTickets = Number.POSITIVE_INFINITY,
 			ticketCost = 1,
 		}) {
 			this.GraphClass = GraphClass;
 			this.maxMonths = 36;
 			this.maxTickets = maxTickets;
 			this.ticketCost = ticketCost;
+			this.graphLimit = graphLimit;
 
 			this.fmtMoney = UIUtils.make_formatter({
 				currency: currencyCode,
@@ -70,13 +80,17 @@
 			this.result = null;
 			this.power = null;
 
-			this.lastMonths = 12;
 			this.lastTickets = defaultTickets;
+			this.lastWinnings = WINNINGS_TAKE;
+			this.lastMonths = 12;
 			this.lastOddsRequest = 500;
-			this.graphLimit = graphLimit;
 
 			this.update = this.update.bind(this);
 
+			this.build_ui(markers);
+		}
+
+		build_ui(markers) {
 			const form = make('form', {'action': '#'}, [
 				this.build_options(),
 				this.build_graph(),
@@ -114,11 +128,12 @@
 				'name': 'winnings',
 				'type': 'radio',
 			});
+			this.fWinTake.addEventListener('change', this.update);
 			this.fWinInvest = make('input', {
-				'disabled': 'disabled',
 				'name': 'winnings',
 				'type': 'radio',
 			});
+			this.fWinInvest.addEventListener('change', this.update);
 
 			this.fOdds = make('input', {
 				'min': '0',
@@ -252,7 +267,7 @@
 			this.resultNonce = nonce;
 			this.result = null;
 			this.power = null;
-			this.raffle.enter(tickets, {priority: 1}).then((result) => {
+			this.raffle.enter(tickets, {priority: 25}).then((result) => {
 				if(this.resultNonce === nonce) {
 					this.result = result;
 					this.lastMonths = null;
@@ -261,29 +276,50 @@
 			});
 		}
 
+		update_winnings(winnings) {
+			if(winnings === this.lastWinnings) {
+				return;
+			}
+			this.lastWinnings = winnings;
+			this.lastMonths = null;
+		}
+
 		update_months(months) {
 			if(months === this.lastMonths || !this.result || !(months > 0)) {
 				return;
 			}
 			this.lastMonths = months;
 
-			if(months === 1) {
-				this.power = this.result;
-				this.redraw_graph();
-				return;
-			}
 			const nonce = {};
 			this.powerNonce = nonce;
 			this.power = null;
-			this.result.pow(months, {pCutoff: 1e-10, priority: 11})
-				.then((result) => {
-					if(this.powerNonce === nonce) {
-						this.power = result;
-						this.lastOddsRequest = null;
-						this.redraw_graph();
-						this.update();
-					}
+			let promise = null;
+
+			switch(this.lastWinnings) {
+			case WINNINGS_TAKE:
+				promise = this.result.pow(months, {
+					pCutoff,
+					priority: 35,
 				});
+				break;
+			case WINNINGS_INVEST:
+				promise = this.raffle.compound(this.lastTickets, months, {
+					maxTickets: this.maxTickets,
+					pCutoff,
+					priority: 15,
+					ticketCost: this.ticketCost,
+				});
+				break;
+			}
+
+			promise.then((result) => {
+				if(this.powerNonce === nonce) {
+					this.power = result;
+					this.lastOddsRequest = null;
+					this.redraw_graph();
+					this.update();
+				}
+			});
 		}
 
 		update_odds_request(oddsRequest) {
@@ -303,6 +339,11 @@
 
 		update() {
 			this.update_tickets(Number.parseInt(this.fTickets.value, 10));
+			this.update_winnings(
+				this.fWinTake.checked
+					? WINNINGS_TAKE
+					: WINNINGS_INVEST
+			);
 			this.update_months(Number.parseInt(this.fMonths.value, 10));
 			this.update_odds_request(Number.parseInt(this.fOdds.value, 10));
 
@@ -316,6 +357,10 @@
 		do_begin_loading() {
 			this.fOddsExact.textContent = '';
 			this.fOddsOrMore.textContent = '';
+			this.markers.forEach((m) => {
+				m.fVal.textContent = '';
+				m.fAPR.textContent = '';
+			});
 			this.loader.style.display = 'block';
 		}
 

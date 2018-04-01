@@ -1,5 +1,9 @@
 'use strict';
 
+if(typeof require !== 'function') {
+	window.require = (name) => window[name.replace('./', '')];
+}
+
 const pick_grid = (() => {
 	const LOG_AXIS_LIMIT = 1e2;
 
@@ -171,7 +175,7 @@ const pick_grid = (() => {
 })();
 
 (() => {
-	const {UIUtils} = window;
+	const UIUtils = require('./UIUtils');
 	const {make, res} = UIUtils;
 
 	const LOG_LIMIT = 1e6;
