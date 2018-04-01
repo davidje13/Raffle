@@ -3,8 +3,10 @@
 <link rel="stylesheet" href="style.css" />
 <link rel="icon" href="favicon.png" />
 <script src="src/Raffle.js"></script>
-<script src="src/Graph.js"></script>
 <script src="src/NSI.js"></script>
+
+<script src="src/UIUtils.js"></script>
+<script src="src/Graph.js"></script>
 <script src="src/RaffleSelectUI.js"></script>
 <script src="src/ProbabilityUI.js"></script>
 <script src="src/InvestmentUI.js"></script>
@@ -30,9 +32,12 @@ window.addEventListener('load', () => {
 		{col: '#009999', name: '95th', value: (r) => r.percentile(95)},
 	];
 
-	const raffleSelectUI = new RaffleSelectUI();
+	const currencyCode = 'GBP';
+
+	const raffleSelectUI = new RaffleSelectUI({currencyCode});
 	const probabilityUI = new ProbabilityUI({
 		GraphClass: Graph,
+		currencyCode,
 		defaultTickets: 10000,
 		graphLimit: 10000,
 		markers,
@@ -41,6 +46,7 @@ window.addEventListener('load', () => {
 	});
 	const investmentUI = new InvestmentUI({
 		GraphClass: Graph,
+		currencyCode,
 		markers,
 		maxTickets: 50000,
 		minTickets: 100,

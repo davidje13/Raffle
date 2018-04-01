@@ -1,33 +1,18 @@
 'use strict';
 
 (() => {
-	function makeText(text = '') {
-		return document.createTextNode(text);
-	}
-
-	function setAttributes(target, attrs) {
-		for(const k in attrs) {
-			if(Object.prototype.hasOwnProperty.call(attrs, k)) {
-				target.setAttribute(k, attrs[k]);
-			}
-		}
-	}
-
-	function make(type, attrs = {}, children = []) {
-		const o = document.createElement(type);
-		setAttributes(o, attrs);
-		for(const c of children) {
-			if(typeof c === 'string') {
-				o.appendChild(makeText(c));
-			} else {
-				o.appendChild(c);
-			}
-		}
-		return o;
-	}
+	const {UIUtils} = window;
+	const {make} = UIUtils;
 
 	class RaffleSelectUI {
-		constructor() {
+		constructor({currencyCode}) {
+			this.fmtMoney = UIUtils.make_formatter({
+				currency: currencyCode,
+				minimumFractionDigits: 0,
+				style: 'currency',
+			});
+			this.fmtCount = UIUtils.make_formatter({pre: '\u00D7 '});
+
 			this.raffles = [];
 
 			this.selector = make('select');
@@ -53,8 +38,8 @@
 			const prizes = raffle.prizes().sort((a, b) => (b.value - a.value));
 			for(const {value, count} of prizes) {
 				this.preview.appendChild(make('li', {}, [
-					make('span', {'class': 'value'}, [value.toFixed(0)]),
-					make('span', {'class': 'count'}, [count.toFixed(0)]),
+					make('span', {'class': 'value'}, [this.fmtMoney(value)]),
+					make('span', {'class': 'count'}, [this.fmtCount(count)]),
 				]));
 			}
 			this.callback(raffle);

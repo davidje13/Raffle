@@ -1,35 +1,11 @@
 'use strict';
 
 (() => {
+	const {UIUtils} = window;
+	const {make, res} = UIUtils;
+
 	const LOG_LIMIT = 1e6;
 	const LOG_AXIS_LIMIT = 1e2;
-	const res = window.devicePixelRatio || 1;
-	window.devicePixelRatio = 1;
-
-	function makeText(text = '') {
-		return document.createTextNode(text);
-	}
-
-	function setAttributes(target, attrs) {
-		for(const k in attrs) {
-			if(Object.prototype.hasOwnProperty.call(attrs, k)) {
-				target.setAttribute(k, attrs[k]);
-			}
-		}
-	}
-
-	function make(type, attrs = {}, children = []) {
-		const o = document.createElement(type);
-		setAttributes(o, attrs);
-		for(const c of children) {
-			if(typeof c === 'string') {
-				o.appendChild(makeText(c));
-			} else {
-				o.appendChild(c);
-			}
-		}
-		return o;
-	}
 
 	function make_canvas(width, height) {
 		const canvas = make('canvas');

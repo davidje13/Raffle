@@ -1,30 +1,8 @@
 'use strict';
 
 (() => {
-	function makeText(text = '') {
-		return document.createTextNode(text);
-	}
-
-	function setAttributes(target, attrs) {
-		for(const k in attrs) {
-			if(Object.prototype.hasOwnProperty.call(attrs, k)) {
-				target.setAttribute(k, attrs[k]);
-			}
-		}
-	}
-
-	function make(type, attrs = {}, children = []) {
-		const o = document.createElement(type);
-		setAttributes(o, attrs);
-		for(const c of children) {
-			if(typeof c === 'string') {
-				o.appendChild(makeText(c));
-			} else {
-				o.appendChild(c);
-			}
-		}
-		return o;
-	}
+	const {UIUtils} = window;
+	const {make} = UIUtils;
 
 	function make_ticket_order(min, max, step) {
 		const r = [];
@@ -50,6 +28,7 @@
 	class InvestmentUI {
 		constructor({
 			GraphClass,
+			currencyCode,
 			markers,
 			maxTickets,
 			minTickets,
@@ -59,12 +38,22 @@
 			this.GraphClass = GraphClass;
 			this.maxMonths = 36;
 			this.ticketCost = ticketCost;
-			this.currencySymbol = '\u00A3';
 			this.ticketOrder = make_ticket_order(
 				minTickets,
 				maxTickets,
 				stepTickets
 			);
+
+			this.fmtCount = UIUtils.make_formatter({});
+			this.fmtValue = UIUtils.make_formatter({
+				currency: currencyCode,
+				minimumFractionDigits: 0,
+				style: 'currency',
+			});
+			this.fmtRatio = UIUtils.make_formatter({
+				minimumFractionDigits: 2,
+				style: 'percent',
+			});
 
 			this.raffle = null;
 			this.results = [];
@@ -87,10 +76,6 @@
 			]);
 			form.addEventListener('submit', (e) => e.preventDefault());
 			this.section = make('section', {'class': 'investment'}, [form]);
-		}
-
-		money(v) {
-			return this.currencySymbol + v.toFixed(2);
 		}
 
 		build_options() {
@@ -164,11 +149,7 @@
 
 		build_graph() {
 			this.graph = new this.GraphClass(498, 248);
-			this.graph.set_x_label(
-				'Tickets',
-				(v) => v.toFixed(0),
-				1
-			);
+			this.graph.set_x_label('Tickets', this.fmtCount, 1);
 
 			this.loader = make('div', {'class': 'loader'});
 			this.loader.style.top = '20px';
@@ -190,7 +171,8 @@
 						col: m.col,
 						value: m.value,
 					};
-					o = make('li', {'style': `color: ${m.col}`}, [m.name]);
+					o = make('li', {}, [m.name]);
+					o.style.color = m.col;
 					this.markers.push(marker);
 				} else {
 					o = make('li', {'class': 'header'}, [m.name]);
@@ -305,17 +287,9 @@
 			const show = this.lastShow;
 
 			if(show === SHOW_VALUE) {
-				this.graph.set_y_label(
-					`Value (${this.currencySymbol})`,
-					(v) => (this.currencySymbol + v.toFixed(0)),
-					1
-				);
+				this.graph.set_y_label('Value', this.fmtValue, 1);
 			} else {
-				this.graph.set_y_label(
-					'Value / Capital (%)',
-					(v) => `${v.toFixed(3)}%`,
-					0.001
-				);
+				this.graph.set_y_label('Value / Capital', this.fmtRatio, 0.01);
 			}
 
 			this.results.forEach((r) => {
@@ -323,7 +297,7 @@
 					return;
 				}
 				const tickets = r.tickets();
-				const mPercent = 100 / (tickets * this.ticketCost);
+				const mPercent = 1 / (tickets * this.ticketCost);
 
 				this.markers.forEach((m, i) => {
 					const v = m.value(r);

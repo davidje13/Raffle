@@ -1,6 +1,9 @@
 'use strict';
 
 (() => {
+	const {UIUtils} = window;
+	const {make, odds} = UIUtils;
+
 	function get_graph_pvalue_data(result) {
 		const data = [{x: 0, y: 1}];
 		let lastV = null;
@@ -20,47 +23,6 @@
 		return [{x, y: 0}, {x, y: 1}];
 	}
 
-	function odds(p) {
-		if(p >= 1) {
-			return 'almost certain';
-		} else if(p > 1 - 1e-4) {
-			return 'very likely';
-		} else if(p >= 0.01) {
-			return `${(p * 100).toFixed(2)}%`;
-		} else if(p >= 1e-10) {
-			return `~1 in ${(1 / p).toFixed(0)}`;
-		} else if(p > 0) {
-			return 'negligible';
-		} else {
-			return '(near-)impossible';
-		}
-	}
-
-	function makeText(text = '') {
-		return document.createTextNode(text);
-	}
-
-	function setAttributes(target, attrs) {
-		for(const k in attrs) {
-			if(Object.prototype.hasOwnProperty.call(attrs, k)) {
-				target.setAttribute(k, attrs[k]);
-			}
-		}
-	}
-
-	function make(type, attrs = {}, children = []) {
-		const o = document.createElement(type);
-		setAttributes(o, attrs);
-		for(const c of children) {
-			if(typeof c === 'string') {
-				o.appendChild(makeText(c));
-			} else {
-				o.appendChild(c);
-			}
-		}
-		return o;
-	}
-
 	function only12(ratio, months) {
 		return (months === 12) ? ratio : Number.NaN;
 	}
@@ -68,6 +30,7 @@
 	class ProbabilityUI {
 		constructor({
 			GraphClass,
+			currencyCode,
 			defaultTickets = 1,
 			graphLimit,
 			markers = [],
@@ -78,7 +41,30 @@
 			this.maxMonths = 36;
 			this.maxTickets = maxTickets;
 			this.ticketCost = ticketCost;
-			this.currencySymbol = '\u00A3';
+
+			this.fmtMoney = UIUtils.make_formatter({
+				currency: currencyCode,
+				style: 'currency',
+			});
+
+			this.fmtMoneyNoDP = UIUtils.make_formatter({
+				currency: currencyCode,
+				minimumFractionDigits: 0,
+				style: 'currency',
+			});
+
+			this.fmtProb = UIUtils.make_formatter({
+				maximumFractionDigits: 3,
+				minimumFractionDigits: 3,
+			});
+
+			this.fmtAPR = UIUtils.make_formatter({
+				minimumFractionDigits: 2,
+				post: ' APR',
+				style: 'percent',
+			});
+
+			this.currencySymbol = this.fmtMoney(0).replace(/[0-9\-.,]/g, '');
 
 			this.raffle = null;
 			this.result = null;
@@ -103,10 +89,6 @@
 			]);
 			form.addEventListener('submit', (e) => e.preventDefault());
 			this.section = make('section', {'class': 'probability'}, [form]);
-		}
-
-		money(v) {
-			return this.currencySymbol + v.toFixed(2);
 		}
 
 		build_options() {
@@ -189,30 +171,22 @@
 			this.graph = new this.GraphClass(498, 148);
 			this.graph.set_x_range({max: this.graphLimit, min: 0});
 			this.graph.set_y_range({max: 1, min: 0});
-			this.graph.set_x_label(
-				`Value (${this.currencySymbol})`,
-				(v) => (this.currencySymbol + v.toFixed(0)),
-				1
-			);
-			this.graph.set_y_label(
-				'p(\u2265value)',
-				(v) => v.toFixed(3),
-				0.001
-			);
+			this.graph.set_x_label('Value', this.fmtMoneyNoDP, 1);
+			this.graph.set_y_label('p(\u2265value)', this.fmtProb, 0.001);
 
-			this.fP0 = makeText();
-			this.fPlim = makeText();
+			this.fP0 = UIUtils.make_text();
+			this.fPlim = UIUtils.make_text();
 			this.loader = make('div', {'class': 'loader'});
 			this.loader.style.top = '40px';
 			this.loader.style.right = '20px';
 
 			return make('div', {'class': 'graph_hold'}, [
 				make('span', {'class': 'probability left'}, [
-					`p(${this.money(0)}) = `,
+					`p(${this.fmtMoneyNoDP(0)}) = `,
 					this.fP0,
 				]),
 				make('span', {'class': 'probability right'}, [
-					`p(\u2265 ${this.money(this.graphLimit)}) = `,
+					`p(\u2265 ${this.fmtMoneyNoDP(this.graphLimit)}) = `,
 					this.fPlim,
 				]),
 				make('br'),
@@ -234,13 +208,14 @@
 						scale: m.scale || only12,
 						value: m.value,
 					};
-					o = make('li', {'style': `color: ${m.col}`}, [
+					o = make('li', {}, [
 						m.name,
 						make('span', {'class': 'key_value'}, [
 							marker.fVal,
 							marker.fAPR,
 						]),
 					]);
+					o.style.color = m.col;
 					this.markers.push(marker);
 				} else {
 					o = make('li', {'class': 'header'}, [m.name]);
@@ -363,12 +338,12 @@
 
 			const data = this.markers.map((m) => {
 				const v = m.value(r);
-				const apr = m.scale(v / capital, months) * 100;
-				m.fVal.textContent = this.money(v);
+				const apr = m.scale(v / capital, months);
+				m.fVal.textContent = this.fmtMoney(v);
 				if(Number.isNaN(apr)) {
 					m.fAPR.textContent = '';
 				} else {
-					m.fAPR.textContent = `${apr.toFixed(2)}% APR`;
+					m.fAPR.textContent = this.fmtAPR(apr);
 				}
 				return {points: y_line(v), style: m.col, width: 0.5};
 			});
