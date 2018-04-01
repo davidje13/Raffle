@@ -172,7 +172,7 @@
 			this.graph.set_x_range({max: this.graphLimit, min: 0});
 			this.graph.set_y_range({max: 1, min: 0});
 			this.graph.set_x_label('Value', this.fmtMoneyNoDP, 1);
-			this.graph.set_y_label('p(\u2265value)', this.fmtProb, 0.001);
+			this.graph.set_y_label('p(\u2265 value)', this.fmtProb, 0.001);
 
 			this.fP0 = UIUtils.make_text();
 			this.fPlim = UIUtils.make_text();
