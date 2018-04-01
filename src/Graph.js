@@ -1,11 +1,180 @@
 'use strict';
 
+const pick_grid = (() => {
+	const LOG_AXIS_LIMIT = 1e2;
+
+	function pick_primary(v, {factor, divisors}) {
+		const base = 1 / Math.log(factor);
+		const ln = Math.log(v) * base;
+		let best = Math.ceil(ln);
+		for(const divisor of divisors) {
+			const shift = Math.log(divisor) * base;
+			best = Math.min(best, Math.ceil(ln - shift) + shift);
+		}
+		return Math.pow(factor, best);
+	}
+
+	function pick_divisor(v, limit, {factor, divisors}) {
+		let bestD = 1;
+		for(const divisor of [factor, ...divisors]) {
+			if(divisor > bestD && limit * divisor < v) {
+				bestD = divisor;
+			}
+		}
+		return bestD;
+	}
+
+	function pick_grid_lin(vis, label, sepMajor, sepMinor) {
+		/*
+		 * Find the highest sample resolution with no overlaps:
+		 *
+		 * step * r / (max - min) >= spacing ; step = 10^n
+		 * n + log10(r) - log10(max - min) >= log10(spacing)
+		 * n >= log10(spacing) - log10(r) + log10(max - min)
+		 */
+
+		const result = {major: [], minor: []};
+
+		const scale = (vis.max - vis.min) / Math.abs(vis.r);
+		let step = pick_primary(sepMajor * scale, label);
+		if(label.minStep > 0) {
+			step = Math.ceil(step / label.minStep - 0.01) * label.minStep;
+			step = Math.max(step, label.minStep);
+		} else if(step <= 0) {
+			step = 1;
+		}
+
+		const stepDiv = pick_divisor(step, sepMinor * scale, label);
+		const stepMinor = step / stepDiv;
+
+		const begin = Math.ceil(vis.min / stepMinor);
+		const limit = Math.floor(vis.max / stepMinor);
+		for(let i = begin; i <= limit; ++ i) {
+			if(i % stepDiv === 0) {
+				result.major.push(i * stepMinor);
+			} else {
+				result.minor.push(i * stepMinor);
+			}
+		}
+
+		return result;
+	}
+
+	function prep_pick_log(vis, label, sepMajor) {
+		const sep = Math.exp(sepMajor * vis.lr / Math.abs(vis.r));
+		const delta = vis.log * (sep - 1);
+		const factorMult = 1 / Math.log(label.factor);
+		const logBase = Math.log(label.minStep || 1) * factorMult;
+
+		return {
+			allow: (p) => (p <= vis.max),
+
+			minor_after: (p) => ({
+				begin: p * 2,
+				limit: Math.min(
+					p * label.factor - p / 2,
+					vis.max - p / label.factor / 2
+				),
+				step: p,
+			}),
+
+			minor_before: (p) => {
+				const step = p / label.factor;
+				return {
+					begin: (Math.floor(vis.min / step) + 1) * step,
+					limit: Math.min(p, vis.max) - step / 2,
+					step,
+				};
+			},
+
+			p_begin: () => {
+				if(label.minStep > 0) {
+					return Math.ceil(vis.min / label.minStep) * label.minStep;
+				} else {
+					return vis.min;
+				}
+			},
+
+			p_final: (lastP) => {
+				let p = vis.max;
+				if(label.minStep > 0) {
+					p = Math.floor(p / label.minStep) * label.minStep;
+				}
+				if(p >= lastP * sep + delta) {
+					return p;
+				} else {
+					return Number.POSITIVE_INFINITY;
+				}
+			},
+
+			p_next: (lastP) => Math.max(
+				Math.pow(
+					label.factor,
+					Math.ceil(
+						Math.log(lastP * sep + delta) * factorMult
+						- logBase
+					) + logBase
+				),
+				label.minStep
+			),
+
+			populate: (list, {begin, limit, step}) => {
+				for(let m = begin; m < limit; m += step) {
+					list.push(m);
+				}
+			},
+		};
+	}
+
+	function pick_grid_log(vis, label, sepMajor) {
+		const result = {major: [], minor: []};
+
+		const picker = prep_pick_log(vis, label, sepMajor);
+
+		let p = picker.p_begin();
+		let lastP = p;
+
+		let first = true;
+		while(picker.allow(p)) {
+			result.major.push(p);
+
+			if(!first) {
+				picker.populate(result.minor, picker.minor_after(p));
+			}
+
+			lastP = p;
+			p = picker.p_next(p);
+
+			if(first) {
+				picker.populate(result.minor, picker.minor_before(p));
+				first = false;
+			}
+		}
+
+		p = picker.p_final(lastP);
+		if(picker.allow(p)) {
+			result.major.push(p);
+		}
+
+		return result;
+	}
+
+	function fn_pick_grid(vis, label, sepMajor, sepMinor) {
+		if(vis.log < LOG_AXIS_LIMIT) {
+			return pick_grid_log(vis, label, sepMajor);
+		} else {
+			return pick_grid_lin(vis, label, sepMajor, sepMinor);
+		}
+	}
+
+	return fn_pick_grid;
+})();
+
 (() => {
 	const {UIUtils} = window;
 	const {make, res} = UIUtils;
 
 	const LOG_LIMIT = 1e6;
-	const LOG_AXIS_LIMIT = 1e2;
 
 	function make_canvas(width, height) {
 		const canvas = make('canvas');
@@ -16,15 +185,61 @@
 		return canvas;
 	}
 
-	function set_range(v, {min = null, max = null, log = null}) {
+	function make_empty_range(begin, range) {
+		return {
+			log: Number.POSITIVE_INFINITY,
+			lr: 0,
+			ls: 0,
+			max: 0,
+			min: 0,
+			r: range,
+			s: begin,
+		};
+	}
+
+	function set_range(vis, {min = null, max = null, log = null}) {
 		if(min !== null) {
-			v.min = min;
+			vis.min = min;
 		}
 		if(max !== null) {
-			v.max = max;
+			vis.max = max;
 		}
 		if(log !== null) {
-			v.log = log;
+			vis.log = log;
+		}
+	}
+
+	function make_empty_label() {
+		return {
+			divisors: [5, 2],
+			factor: 10,
+			label: '',
+			minStep: 0,
+			values: (v) => String(v),
+		};
+	}
+
+	function set_label(lbl, {
+		divisors = null,
+		factor = null,
+		label = null,
+		minStep = null,
+		values = null,
+	}) {
+		if(divisors !== null) {
+			lbl.divisors = divisors;
+		}
+		if(factor !== null) {
+			lbl.factor = factor;
+		}
+		if(label !== null) {
+			lbl.label = label;
+		}
+		if(minStep !== null) {
+			lbl.minStep = minStep;
+		}
+		if(values !== null) {
+			lbl.values = values;
 		}
 	}
 
@@ -48,92 +263,22 @@
 		return (log < LOG_LIMIT) ? Math.exp(pp) - log : pp;
 	}
 
-	function pick125(v) {
-		const ln = Math.log10(v);
-		return Math.pow(10, Math.min(
-			Math.ceil(ln),
-			Math.ceil(ln - Math.log10(2)) + Math.log10(2),
-			Math.ceil(ln - Math.log10(5)) + Math.log10(5)
-		));
-	}
-
-	function pickDivisor125(v, limit) {
-		for(const divisor of [10, 5, 2]) {
-			if(v / divisor >= limit) {
-				return divisor;
-			}
-		}
-		return 1;
-	}
-
-	function pick_grid({log, max, min, r}, {minStep}, spacing, spacingMinor) {
-		const major = [];
-		const minor = [];
-
-		if(log < LOG_AXIS_LIMIT) {
-			major.push(min);
-			major.push(max);
-		} else {
-			/*
-			 * Find the highest sample resolution with no overlaps:
-			 *
-			 * step * r / (max - min) >= spacing ; step = 10^n
-			 * n + log10(r) - log10(max - min) >= log10(spacing)
-			 * n >= log10(spacing) - log10(r) + log10(max - min)
-			 */
-
-			const scale = (max - min) / Math.abs(r);
-			let step = pick125(spacing * scale);
-			if(minStep > 0) {
-				step = Math.ceil(step / minStep - 0.01) * minStep;
-				step = Math.max(step, minStep);
-			} else if(step <= 0) {
-				step = 1;
-			}
-
-			const stepDiv = pickDivisor125(step, spacingMinor * scale);
-			const stepMinor = step / stepDiv;
-
-			const begin = Math.ceil(min / stepMinor);
-			const limit = Math.floor(max / stepMinor);
-			for(let i = begin; i <= limit; ++ i) {
-				if(i % stepDiv === 0) {
-					major.push(i * stepMinor);
-				} else {
-					minor.push(i * stepMinor);
-				}
-			}
-		}
-
-		return {major, minor};
-	}
-
 	class Graph {
 		constructor(width, height) {
 			this.width = width;
 			this.height = height;
 			this.lineW = 1.5;
 
-			this.visX = {
-				log: Number.POSITIVE_INFINITY,
-				lr: 0,
-				ls: 0,
-				max: 0,
-				min: 0,
-				r: (width - this.lineW) * res,
-				s: 0.5 * this.lineW * res,
-			};
-			this.visY = {
-				log: Number.POSITIVE_INFINITY,
-				lr: 0,
-				ls: 0,
-				max: 0,
-				min: 0,
-				r: (this.lineW - height) * res,
-				s: (height - 0.5 * this.lineW) * res,
-			};
-			this.labelX = {label: '', minStep: 0, values: (v) => String(v)};
-			this.labelY = {label: '', minStep: 0, values: (v) => String(v)};
+			this.visX = make_empty_range(
+				0.5 * this.lineW * res,
+				(width - this.lineW) * res
+			);
+			this.visY = make_empty_range(
+				(height - 0.5 * this.lineW) * res,
+				(this.lineW - height) * res
+			);
+			this.labelX = make_empty_label();
+			this.labelY = make_empty_label();
 
 			this.data = [];
 
@@ -174,12 +319,12 @@
 			this.update_log_scales();
 		}
 
-		set_x_label(label, values, minStep = 0) {
-			this.labelX = {label, minStep, values};
+		set_x_label(options) {
+			set_label(this.labelX, options);
 		}
 
-		set_y_label(label, values, minStep = 0) {
-			this.labelY = {label, minStep, values};
+		set_y_label(options) {
+			set_label(this.labelY, options);
 		}
 
 		set(data, {updateBounds = true} = {}) {

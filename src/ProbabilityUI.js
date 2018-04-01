@@ -171,8 +171,16 @@
 			this.graph = new this.GraphClass(498, 148);
 			this.graph.set_x_range({max: this.graphLimit, min: 0});
 			this.graph.set_y_range({max: 1, min: 0});
-			this.graph.set_x_label('Value', this.fmtMoneyNoDP, 1);
-			this.graph.set_y_label('p(\u2265 value)', this.fmtProb, 0.001);
+			this.graph.set_x_label({
+				label: 'Value',
+				minStep: 1,
+				values: this.fmtMoneyNoDP,
+			});
+			this.graph.set_y_label({
+				label: 'p(\u2265 value)',
+				minStep: 0.001,
+				values: this.fmtProb,
+			});
 
 			this.fP0 = UIUtils.make_text();
 			this.fPlim = UIUtils.make_text();

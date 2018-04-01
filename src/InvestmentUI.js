@@ -149,7 +149,11 @@
 
 		build_graph() {
 			this.graph = new this.GraphClass(498, 248);
-			this.graph.set_x_label('Tickets', this.fmtCount, 1);
+			this.graph.set_x_label({
+				label: 'Tickets',
+				minStep: 1,
+				values: this.fmtCount,
+			});
 
 			this.loader = make('div', {'class': 'loader'});
 			this.loader.style.top = '20px';
@@ -280,16 +284,29 @@
 
 		redraw_graph() {
 			const data = this.markers.map((m) => ({
-				points: [{x: 0, y: 0}],
+				points: [],
 				style: m.col,
 			}));
 
 			const show = this.lastShow;
 
-			if(show === SHOW_VALUE) {
-				this.graph.set_y_label('Value', this.fmtValue, 1);
-			} else {
-				this.graph.set_y_label('Value / Capital', this.fmtRatio, 0.01);
+			switch(show) {
+			case SHOW_VALUE:
+				this.graph.set_y_label({
+					label: 'Value',
+					minStep: 1,
+					values: this.fmtValue,
+				});
+				this.graph.set_y_range({log: Number.POSITIVE_INFINITY});
+				break;
+			case SHOW_PERCENT:
+				this.graph.set_y_label({
+					label: 'Value / Capital',
+					minStep: 0.0001,
+					values: this.fmtRatio,
+				});
+				this.graph.set_y_range({log: 0.005});
+				break;
 			}
 
 			this.results.forEach((r) => {
@@ -297,15 +314,20 @@
 					return;
 				}
 				const tickets = r.tickets();
-				const mPercent = 1 / (tickets * this.ticketCost);
+				const mPercent = (tickets > 0)
+					? 1 / (tickets * this.ticketCost)
+					: 0;
 
 				this.markers.forEach((m, i) => {
 					const v = m.value(r);
 					const pt = {x: tickets, y: null};
-					if(show === SHOW_VALUE) {
+					switch(show) {
+					case SHOW_VALUE:
 						pt.y = v;
-					} else if(show === SHOW_PERCENT) {
+						break;
+					case SHOW_PERCENT:
 						pt.y = v * mPercent;
+						break;
 					}
 					data[i].points.push(pt);
 				});
