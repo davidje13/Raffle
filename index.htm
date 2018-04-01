@@ -22,14 +22,14 @@ window.addEventListener('load', () => {
 
 	const markers = [
 		{name: 'Averages'},
-		{col: '#CC0000', name: 'Mean', scale: to_apr, value: (r) => r.mean()},
-		{col: '#0033CC', name: 'Median', value: (r) => r.median()},
+		{col: '#0033CC', name: 'Mean', scale: to_apr, value: (r) => r.mean()},
+		{col: '#0077AA', name: 'Median', value: (r) => r.median()},
 		{col: '#009900', name: 'Mode', value: (r) => r.mode()},
 
 		{name: 'Percentiles'},
-		{col: '#CC9900', name: '25th', value: (r) => r.percentile(25)},
-		{col: '#9933FF', name: '75th', value: (r) => r.percentile(75)},
-		{col: '#009999', name: '95th', value: (r) => r.percentile(95)},
+		{col: '#CCAA66', name: '25th', value: (r) => r.percentile(25)},
+		{col: '#AA66FF', name: '75th', value: (r) => r.percentile(75)},
+		{col: '#CC6666', name: '95th', value: (r) => r.percentile(95)},
 	];
 
 	const currencyCode = 'GBP';
@@ -110,8 +110,8 @@ window.addEventListener('load', () => {
 	));
 
 	document.body.appendChild(raffleSelectUI.dom());
-	document.body.appendChild(probabilityUI.dom());
 	document.body.appendChild(investmentUI.dom());
+	document.body.appendChild(probabilityUI.dom());
 });
 </script>
 </head>

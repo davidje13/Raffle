@@ -4,6 +4,25 @@ body {
 	padding: 0;
 }
 
+h1 {
+	margin: 0 0 15px;
+	font-size: 20px;
+	font-weight: normal;
+}
+
+p {
+	margin: 10px 0 0;
+}
+
+a:link,a:visited {
+	text-decoration: underline;
+	color: inherit;
+}
+a:active,a:hover {
+	text-decoration: none;
+	color: inherit;
+}
+
 section {
 	display: inline-block;
 	vertical-align: top;
@@ -11,6 +30,12 @@ section {
 	padding: 5px;
 	background: #E6E6E6;
 	position: relative;
+}
+
+section.info {
+	font-size: 14px;
+	background: transparent;
+	display: block;
 }
 
 section.raffle_select {
@@ -52,30 +77,6 @@ section.raffle_select ul.preview li:nth-child(even) {
 form {
 	margin: 0;
 	padding: 0;
-}
-
-h1 {
-	margin: 0 0 15px;
-	font-size: 1.4em;
-	font-weight: normal;
-}
-
-p {
-	margin: 10px 0 0;
-}
-
-.info {
-	font-size: 14px;
-	background: transparent;
-}
-
-a:link,a:visited {
-	text-decoration: underline;
-	color: inherit;
-}
-a:active,a:hover {
-	text-decoration: none;
-	color: inherit;
 }
 
 .options {
@@ -187,7 +188,7 @@ label span {
 ul.key {
 	display: inline-block;
 	vertical-align: top;
-	background: #F8F8F8;
+	background: #FAFAFA;
 	margin: 0 0 30px;
 	padding: 0 5px 5px;
 	font-size: 11px;
@@ -235,7 +236,7 @@ ul.key li.header {
 
 .graph .label {
 	position: absolute;
-	font-size: 10px;
+	font-size: 11px;
 	text-align: center;
 	line-height: 1;
 }
