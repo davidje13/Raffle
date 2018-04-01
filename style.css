@@ -82,6 +82,7 @@ form {
 .options {
 	font-size: 11px;
 	line-height: 16px;
+	user-select: none;
 }
 .optarea {
 	display: inline-block;
