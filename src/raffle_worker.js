@@ -7,10 +7,13 @@
 	const post = {fn: () => null};
 	let perf_now = () => 0;
 
-	const DEBUG = 1;
-	const INFO = 2;
+	const LEVEL = {
+		debug: 1,
+		info: 2,
+		none: 3,
+	};
 
-	const profilingLevel = INFO;
+	const profilingLevel = LEVEL.none;
 
 	function send_profiling(name, millis, level) {
 		if(level < profilingLevel) {
@@ -146,7 +149,7 @@
 				}
 			});
 		}
-		send_profiling('Calculate odds', totalTm, DEBUG);
+		send_profiling('Calculate odds', totalTm, LEVEL.debug);
 	}
 
 	function calculate_final_odds(total, targets, samples) {
@@ -219,7 +222,7 @@
 			apply_distribution(prob, remainingAudience, prize, pCutoff);
 			const t1 = perf_now();
 			remainingAudience -= prize.count;
-			send_profiling(`Distribute ${prize.value}`, t1 - t0, DEBUG);
+			send_profiling(`Distribute ${prize.value}`, t1 - t0, LEVEL.debug);
 		}
 
 		const t0 = perf_now();
@@ -227,7 +230,7 @@
 		apply_final_distribution(prob, remainingAudience, lastPrize);
 		const t1 = perf_now();
 
-		send_profiling('Accumulate', t1 - t0, DEBUG);
+		send_profiling('Accumulate', t1 - t0, LEVEL.debug);
 
 		return prob[tickets];
 	}
@@ -306,6 +309,21 @@
 		return fullPMap;
 	}
 
+	function compound(parts, pCutoff) {
+		const pMap = new Map();
+
+		parts.forEach((part) => {
+			part.r.forEach((pt) => {
+				const p = part.p * pt.p;
+				if(p > pCutoff) {
+					accumulate(pMap, part.value + pt.value, p);
+				}
+			});
+		});
+
+		return pMap;
+	}
+
 	function message_handler_generate({prizes, tickets, pCutoff}) {
 		const pMap = calculate_probability_map(prizes, tickets, pCutoff);
 		const result = extract_cumulative_probability(pMap, pCutoff);
@@ -329,6 +347,17 @@
 		};
 	}
 
+	function message_handler_compound({parts, pCutoff}) {
+		const pMap = compound(parts, pCutoff);
+		const result = extract_cumulative_probability(pMap, pCutoff);
+
+		return {
+			cumulativeP: result.cumulativeP,
+			normalisation: result.totalP,
+			type: 'result',
+		};
+	}
+
 	function message_handler(data) {
 		const tB = perf_now();
 		let result = null;
@@ -343,10 +372,13 @@
 			result = message_handler_pow(data);
 			label += ` ${data.power}`;
 			break;
+		case 'compound':
+			result = message_handler_compound(data);
+			break;
 		}
 
 		const tE = perf_now();
-		send_profiling(`Total for ${label}`, tE - tB, INFO);
+		send_profiling(`Total for ${label}`, tE - tB, LEVEL.info);
 
 		return result;
 	}

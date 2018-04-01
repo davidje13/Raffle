@@ -43,42 +43,6 @@ if(typeof require !== 'function') {
 		return generated;
 	}
 
-	function extract_cumulative_probability(pMap, pCutoff) {
-		const cumulativeP = Array.from(pMap.entries())
-			.map(([value, p]) => ({cp: 0, p, value}))
-			.filter(({p}) => (p > pCutoff))
-			.sort((a, b) => (a.value - b.value));
-
-		let totalP = 0;
-		for(let i = 0; i < cumulativeP.length; ++ i) {
-			totalP += cumulativeP[i].p;
-			cumulativeP[i].cp = totalP;
-		}
-
-		// Normalise to [0 1] to correct for numeric errors
-		cumulativeP.forEach((x) => {
-			x.cp /= totalP;
-			x.p /= totalP;
-		});
-
-		return {cumulativeP, totalP};
-	}
-
-	function mult_cp(results, pCutoff) {
-		const pMap = new Map();
-
-		results.forEach((result) => {
-			result.r.forEach((pt) => {
-				const p = result.p * pt.p;
-				if(p > pCutoff) {
-					accumulate(pMap, result.value + pt.value, p);
-				}
-			});
-		});
-
-		return extract_cumulative_probability(pMap, pCutoff).cumulativeP;
-	}
-
 	function check_integer(
 		message,
 		value,
@@ -127,6 +91,8 @@ if(typeof require !== 'function') {
 			prizeMap,
 		};
 	}
+
+	const emptyResults = [{cp: 1, p: 1, value: 0}];
 
 	class Results {
 		constructor(engine, tickets, cumulativeP) {
@@ -229,7 +195,7 @@ if(typeof require !== 'function') {
 				return Promise.resolve(new Results(
 					this.engine,
 					this.n,
-					[{cp: 1, p: 1, value: 0}]
+					emptyResults
 				));
 			} else if(power === 1) {
 				return Promise.resolve(this);
@@ -295,6 +261,14 @@ if(typeof require !== 'function') {
 		enter(tickets, {priority = 20} = {}) {
 			check_integer('Invalid ticket count', tickets, 0, this.m);
 
+			if(tickets === 0) {
+				return Promise.resolve(new Results(
+					this.engine,
+					tickets,
+					emptyResults
+				));
+			}
+
 			return read_cache(this.cache, tickets, () => (
 				new SharedPromise(this.engine.queue_task({
 					pCutoff: this.pCutoff,
@@ -311,33 +285,28 @@ if(typeof require !== 'function') {
 
 		compound(tickets, power, {
 			maxTickets = Number.POSITIVE_INFINITY,
-			pCutoff = 0,
 			priority = 10,
 			ticketCost = 1,
 		} = {}) {
+			window.lastMe = this;
 			check_integer('Invalid ticket count', tickets, 0, this.m);
 			check_integer('Invalid power', power, 0);
 
-			if(power === 0) {
+			if(power === 0 || tickets === 0) {
 				return Promise.resolve(new Results(
 					this.engine,
 					tickets,
-					[{cp: 1, p: 1, value: 0}]
+					emptyResults
 				));
 			}
 
 			const optCache = read_cache(
 				this.compoundCache,
-				JSON.stringify({
-					maxTickets,
-					pCutoff,
-					priority,
-					ticketCost,
-				}),
+				`${maxTickets}:${ticketCost}`,
 				() => new Map()
 			);
 
-			const ticketCache = read_cache(optCache, tickets, () => new Map());
+			const ticketCache = read_cache(optCache, tickets, () => []);
 
 			const step = (res) => {
 				const promises = res.cumulativeP.map(({p, value}) => this.enter(
@@ -348,27 +317,27 @@ if(typeof require !== 'function') {
 					{priority}
 				).then((r) => ({p, r: r.cumulativeP, value})));
 
-				return Promise.all(promises).then((ps) => new Results(
-					this.engine,
-					tickets,
-					mult_cp(ps, pCutoff)
-				));
+				return Promise.all(promises)
+					.then((parts) => this.engine.queue_task({
+						pCutoff: this.pCutoff,
+						parts,
+						type: 'compound',
+					}, priority + 1))
+					.then(({cumulativeP}) => new Results(
+						this.engine,
+						tickets,
+						cumulativeP
+					));
 			};
 
-			let baseP = 1;
-			for(let p = power; p > 1; -- p) {
-				if(ticketCache.has(p)) {
-					baseP = p;
-					break;
-				}
-			}
+			const baseP = Math.min(ticketCache.length + 1, power);
 			let promise = (baseP === 1)
 				? this.enter(tickets, {priority})
-				: ticketCache.get(baseP).promise();
+				: ticketCache[baseP - 2].promise();
 
 			for(let p = baseP; p < power; ++ p) {
 				const sharedPromise = new SharedPromise(promise.then(step));
-				ticketCache.set(p + 1, sharedPromise);
+				ticketCache[p - 1] = sharedPromise;
 				promise = sharedPromise.promise();
 			}
 			return promise;

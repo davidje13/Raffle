@@ -23,6 +23,10 @@ if(typeof require !== 'function') {
 		return data;
 	}
 
+	function read_ui_num(field, low, high = Number.POSITIVE_INFINITY) {
+		return Math.max(Math.min(Number.parseInt(field.value, 10), high), low);
+	}
+
 	function y_line(x) {
 		return [{x, y: 0}, {x, y: 1}];
 	}
@@ -305,7 +309,6 @@ if(typeof require !== 'function') {
 			case WINNINGS_INVEST:
 				promise = this.raffle.compound(this.lastTickets, months, {
 					maxTickets: this.maxTickets,
-					pCutoff,
 					priority: 15,
 					ticketCost: this.ticketCost,
 				});
@@ -338,14 +341,14 @@ if(typeof require !== 'function') {
 		}
 
 		update() {
-			this.update_tickets(Number.parseInt(this.fTickets.value, 10));
+			this.update_tickets(read_ui_num(this.fTickets, 0, this.maxTickets));
 			this.update_winnings(
 				this.fWinTake.checked
 					? WINNINGS_TAKE
 					: WINNINGS_INVEST
 			);
-			this.update_months(Number.parseInt(this.fMonths.value, 10));
-			this.update_odds_request(Number.parseInt(this.fOdds.value, 10));
+			this.update_months(read_ui_num(this.fMonths, 1, this.maxMonths));
+			this.update_odds_request(read_ui_num(this.fOdds, 0));
 
 			if(this.power) {
 				this.end_loading();

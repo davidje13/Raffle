@@ -26,8 +26,17 @@ if(typeof require !== 'function') {
 		return r2;
 	}
 
+	function read_ui_num(field, low, high = Number.POSITIVE_INFINITY) {
+		return Math.max(Math.min(Number.parseInt(field.value, 10), high), low);
+	}
+
+	const WINNINGS_TAKE = 0;
+	const WINNINGS_INVEST = 1;
+
 	const SHOW_VALUE = 0;
 	const SHOW_PERCENT = 1;
+
+	const pCutoff = 1e-10;
 
 	class InvestmentUI {
 		constructor({
@@ -37,15 +46,22 @@ if(typeof require !== 'function') {
 			maxTickets,
 			minTickets,
 			stepTickets,
+			stepTicketsLowRes = 0,
 			ticketCost = 1,
 		}) {
 			this.GraphClass = GraphClass;
 			this.maxMonths = 36;
 			this.ticketCost = ticketCost;
+			this.maxTickets = maxTickets;
 			this.ticketOrder = make_ticket_order(
 				minTickets,
 				maxTickets,
 				stepTickets
+			);
+			this.ticketOrderLowRes = make_ticket_order(
+				minTickets,
+				maxTickets,
+				stepTicketsLowRes || stepTickets
 			);
 
 			this.fmtCount = UIUtils.make_formatter({});
@@ -61,8 +77,9 @@ if(typeof require !== 'function') {
 
 			this.raffle = null;
 			this.results = [];
-			this.loaded = 0;
+			this.loading = 0;
 
+			this.lastWinnings = WINNINGS_TAKE;
 			this.lastMonths = 12;
 			this.lastShow = SHOW_VALUE;
 
@@ -101,11 +118,12 @@ if(typeof require !== 'function') {
 				'name': 'winnings',
 				'type': 'radio',
 			});
+			this.fWinTake.addEventListener('change', this.update);
 			this.fWinInvest = make('input', {
-				'disabled': 'disabled',
 				'name': 'winnings',
 				'type': 'radio',
 			});
+			this.fWinInvest.addEventListener('change', this.update);
 
 			this.fShowValue = make('input', {
 				'checked': 'checked',
@@ -199,8 +217,16 @@ if(typeof require !== 'function') {
 				return;
 			}
 			this.raffle = raffle;
-			this.lastMonths = null;
+			this.lastWinnings = null;
 			this.update();
+		}
+
+		update_winnings(winnings) {
+			if(winnings === this.lastWinnings) {
+				return;
+			}
+			this.lastWinnings = winnings;
+			this.lastMonths = null;
 		}
 
 		update_months(months) {
@@ -209,25 +235,55 @@ if(typeof require !== 'function') {
 			}
 			this.lastMonths = months;
 
-			this.loaded = 0;
+			this.loading = 0;
 			this.results.length = 0;
 			const nonce = {};
 			this.resultsNonce = nonce;
-			this.ticketOrder.forEach(({i, v}) => {
+			let order = null;
+
+			switch(this.lastWinnings) {
+			case WINNINGS_TAKE:
+				order = this.ticketOrder;
+				break;
+			case WINNINGS_INVEST:
+				order = this.ticketOrderLowRes;
+				break;
+			}
+
+			order.forEach(({i, v}) => {
 				this.results[i] = null;
-				this.raffle.enter(v)
-					.then((result) => result.pow(months, {pCutoff: 1e-10}))
+				++ this.loading;
+
+				let promise = null;
+				switch(this.lastWinnings) {
+				case WINNINGS_TAKE:
+					promise = this.raffle.enter(v, {priority: 20})
+						.then((result) => result.pow(months, {
+							pCutoff,
+							priority: 30,
+						}));
+					break;
+				case WINNINGS_INVEST:
+					promise = this.raffle.compound(v, months, {
+						maxTickets: this.maxTickets,
+						priority: 10,
+						ticketCost: this.ticketCost,
+					});
+					break;
+				}
+
+				promise
 					.then((result) => {
 						if(this.resultsNonce === nonce) {
 							this.results[i] = result;
 							this.lastShow = null;
-							++ this.loaded;
+							-- this.loading;
 							this.debounce_got_result();
 						}
 					})
 					.catch(() => {
 						if(this.resultsNonce === nonce) {
-							++ this.loaded;
+							-- this.loading;
 							this.debounce_got_result();
 						}
 					});
@@ -247,14 +303,19 @@ if(typeof require !== 'function') {
 			clearTimeout(this.tmUpdate);
 			this.tmUpdate = null;
 
-			this.update_months(Number.parseInt(this.fMonths.value, 10));
+			this.update_winnings(
+				this.fWinTake.checked
+					? WINNINGS_TAKE
+					: WINNINGS_INVEST
+			);
+			this.update_months(read_ui_num(this.fMonths, 1, this.maxMonths));
 			this.update_show(
 				this.fShowValue.checked
 					? SHOW_VALUE
 					: SHOW_PERCENT
 			);
 
-			if(this.loaded < this.results.length) {
+			if(this.loading > 0) {
 				this.begin_loading();
 			} else {
 				this.end_loading();
@@ -269,6 +330,7 @@ if(typeof require !== 'function') {
 
 		do_begin_loading() {
 			this.loader.style.display = 'block';
+			this.redraw_graph();
 		}
 
 		begin_loading() {
