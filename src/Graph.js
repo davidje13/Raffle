@@ -48,12 +48,31 @@
 		return (log < LOG_LIMIT) ? Math.exp(pp) - log : pp;
 	}
 
-	function pick_values({log, max, min, r}, {minStep}, spacing) {
-		const result = [];
+	function pick125(v) {
+		const ln = Math.log10(v);
+		return Math.pow(10, Math.min(
+			Math.ceil(ln),
+			Math.ceil(ln - Math.log10(2)) + Math.log10(2),
+			Math.ceil(ln - Math.log10(5)) + Math.log10(5)
+		));
+	}
+
+	function pickDivisor125(v, limit) {
+		for(const divisor of [10, 5, 2]) {
+			if(v / divisor >= limit) {
+				return divisor;
+			}
+		}
+		return 1;
+	}
+
+	function pick_grid({log, max, min, r}, {minStep}, spacing, spacingMinor) {
+		const major = [];
+		const minor = [];
 
 		if(log < LOG_AXIS_LIMIT) {
-			result.push(min);
-			result.push(max);
+			major.push(min);
+			major.push(max);
 		} else {
 			/*
 			 * Find the highest sample resolution with no overlaps:
@@ -63,32 +82,30 @@
 			 * n >= log10(spacing) - log10(r) + log10(max - min)
 			 */
 
-			const lnStep = (
-				Math.log10(spacing)
-				- Math.log10(Math.abs(r))
-				+ Math.log10(max - min)
-			);
-			const step10 = Math.ceil(lnStep);
-			const step20 = Math.ceil(lnStep - Math.log10(2)) + Math.log10(2);
-			const step50 = Math.ceil(lnStep - Math.log10(5)) + Math.log10(5);
-
-			let step = Math.pow(10, Math.min(
-				step10,
-				Math.min(step20, step50)
-			));
+			const scale = (max - min) / Math.abs(r);
+			let step = pick125(spacing * scale);
 			if(minStep > 0) {
 				step = Math.ceil(step / minStep - 0.01) * minStep;
 				step = Math.max(step, minStep);
 			} else if(step <= 0) {
 				step = 1;
 			}
-			const begin = Math.round(min / step) * step;
-			for(let i = begin; i <= max; i += step) {
-				result.push(i);
+
+			const stepDiv = pickDivisor125(step, spacingMinor * scale);
+			const stepMinor = step / stepDiv;
+
+			const begin = Math.ceil(min / stepMinor);
+			const limit = Math.floor(max / stepMinor);
+			for(let i = begin; i <= limit; ++ i) {
+				if(i % stepDiv === 0) {
+					major.push(i * stepMinor);
+				} else {
+					minor.push(i * stepMinor);
+				}
 			}
 		}
 
-		return result;
+		return {major, minor};
 	}
 
 	class Graph {
@@ -242,25 +259,43 @@
 			}
 		}
 
-		render_axes() {
-			this.fLabelX.textContent = this.labelX.label;
-			this.fLabelY.textContent = this.labelY.label;
-			this.fValuesX.textContent = '';
-			this.fValuesY.textContent = '';
-			for(const x of pick_values(this.visX, this.labelX, 60 * res)) {
-				const o = make('span', {}, [this.labelX.values(x)]);
-				o.style.left = this.coord_to_pt_x(x) / res;
-				this.fValuesX.appendChild(o);
+		draw_lines_x(lines, style) {
+			this.context.strokeStyle = style;
+			this.context.lineWidth = res;
+			for(const x of lines) {
+				const xx = Math.round(this.coord_to_pt_x(x));
+				this.context.beginPath();
+				this.context.moveTo(xx, 0);
+				this.context.lineTo(xx, this.height * res);
+				this.context.stroke();
 			}
-			for(const y of pick_values(this.visY, this.labelY, 20 * res)) {
-				const o = make('span', {}, [this.labelY.values(y)]);
-				o.style.top = this.coord_to_pt_y(y) / res;
-				this.fValuesY.appendChild(o);
+		}
+
+		draw_lines_y(lines, style) {
+			this.context.strokeStyle = style;
+			this.context.lineWidth = res;
+			for(const y of lines) {
+				const yy = Math.round(this.coord_to_pt_y(y));
+				this.context.beginPath();
+				this.context.moveTo(0, yy);
+				this.context.lineTo(this.width * res, yy);
+				this.context.stroke();
 			}
 		}
 
 		render() {
 			this.context.clearRect(0, 0, this.width * res, this.height * res);
+
+			// Gridlines
+			const gridX = pick_grid(this.visX, this.labelX, 60 * res, 5 * res);
+			const gridY = pick_grid(this.visY, this.labelY, 20 * res, 5 * res);
+
+			this.draw_lines_x(gridX.minor, 'rgba(0,0,0,0.02)');
+			this.draw_lines_y(gridY.minor, 'rgba(0,0,0,0.02)');
+			this.draw_lines_x(gridX.major, 'rgba(0,0,0,0.1)');
+			this.draw_lines_y(gridY.major, 'rgba(0,0,0,0.1)');
+
+			// Data
 			this.data.forEach(({points, style, width}) => {
 				this.context.strokeStyle = style || '#000000';
 				this.context.lineWidth = (width || this.lineW) * res;
@@ -273,7 +308,24 @@
 				});
 				this.context.stroke();
 			});
-			this.render_axes();
+
+			// X Axis
+			this.fLabelX.textContent = this.labelX.label;
+			this.fValuesX.textContent = '';
+			for(const x of gridX.major) {
+				const o = make('span', {}, [this.labelX.values(x)]);
+				o.style.left = this.coord_to_pt_x(x) / res;
+				this.fValuesX.appendChild(o);
+			}
+
+			// Y Axis
+			this.fLabelY.textContent = this.labelY.label;
+			this.fValuesY.textContent = '';
+			for(const y of gridY.major) {
+				const o = make('span', {}, [this.labelY.values(y)]);
+				o.style.top = this.coord_to_pt_y(y) / res;
+				this.fValuesY.appendChild(o);
+			}
 		}
 
 		dom() {
