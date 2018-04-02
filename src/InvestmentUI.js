@@ -13,15 +13,33 @@ if(typeof require !== 'function') {
 		for(let i = min; i <= max; i += step) {
 			r.push(i);
 		}
-		const r2 = [];
+
 		// There is likely a bettery way!
-		for(let stride = r.length - 1; stride > 0; stride >>= 1) {
-			for(let i = 0; i < r.length; i += stride) {
-				if(r[i] !== null) {
-					r2.push({i, v: r[i]});
-					r[i] = null;
-				}
+
+		const r2 = [];
+
+		let NPoT = 1;
+		while(NPoT < r.length) {
+			NPoT <<= 1;
+		}
+
+		const add = (i) => {
+			if(r[i] !== null) {
+				r2.push({i, v: r[i]});
+				r[i] = null;
 			}
+		};
+
+		add(0);
+		add(r.length - 1);
+
+		for(let stride = NPoT; stride > 1; stride >>= 1) {
+			for(let i = 0; i < NPoT; i += stride) {
+				add(Math.floor(i * r.length / NPoT));
+			}
+		}
+		for(let i = 0; i < r.length; ++ i) {
+			add(i);
 		}
 		return r2;
 	}
