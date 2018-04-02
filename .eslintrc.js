@@ -11,6 +11,7 @@ module.exports = {
 		'eslint:recommended',
 		'plugin:jasmine/recommended',
 	],
+	'globals': {'SharedArrayBuffer': false},
 	'plugins': ['jasmine'],
 	'rules': {
 		'accessor-pairs': ['error'],

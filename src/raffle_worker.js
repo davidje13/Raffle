@@ -25,6 +25,34 @@
 		});
 	}
 
+	/*
+	 * Once generated, the data does not change, so sharing it is a safe thing
+	 * to do and provides a BIG performance boost for .compound()
+	 *
+	 * Sadly, SharedArrayBuffer has been disabled by default in recent browsers
+	 * due to the Spectre attack, so we can't rely on this alone; fall-back to
+	 * the transfer API if shared buffers are not available
+	 */
+	const SUPPORTS_SHARED_BUFFER = (typeof SharedArrayBuffer !== 'undefined');
+
+	function make_shared_float_array(length) {
+		if(SUPPORTS_SHARED_BUFFER) {
+			const bytes = length * Float64Array.BYTES_PER_ELEMENT;
+			const buffer = new SharedArrayBuffer(bytes);
+			return new Float64Array(buffer);
+		} else {
+			return new Float64Array(length);
+		}
+	}
+
+	function transfer_float_array(array) {
+		if(SUPPORTS_SHARED_BUFFER) {
+			return [];
+		} else {
+			return [array.buffer];
+		}
+	}
+
 	function accumulate(map, key, value) {
 		const existing = map.get(key) || 0;
 		map.set(key, existing + value);
@@ -256,7 +284,7 @@
 			.sort(([v1], [v2]) => (v1 - v2));
 
 		let totalP = 0;
-		const cumulativeP = new Float64Array(data.length * 3);
+		const cumulativeP = make_shared_float_array(data.length * 3);
 		for(let i = 0; i < data.length; ++ i) {
 			totalP += data[i][1];
 			cumulativeP[i * 3 + CP] = totalP;
@@ -381,7 +409,7 @@
 				normalisation: result.totalP,
 				type: 'result',
 			},
-			transfer: [result.cumulativeP.buffer],
+			transfer: transfer_float_array(result.cumulativeP),
 		};
 	}
 
