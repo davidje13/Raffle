@@ -52,7 +52,26 @@
 		}
 	}
 
-	let sharedMapStarter = new Map();
+	// Share temporary objects to reduce GC activity
+	const sharedOdds = {l: [], s: 0};
+	const sharedProbList = [];
+	const sharedMaps = (() => {
+		const maps = [];
+
+		return {
+			get: () => {
+				if(maps.length > 0) {
+					return maps.pop();
+				} else {
+					return new Map();
+				}
+			},
+			put: (map) => {
+				map.clear();
+				maps.push(map);
+			},
+		};
+	})();
 
 	function accumulate(map, key, value) {
 		const existing = map.get(key) || 0;
@@ -86,11 +105,6 @@
 		};
 	})();
 
-	// Share common immutable objects to reduce GC activity
-	const FIXED_1 = [1];
-	const FIXED_ODDS_1 = {l: FIXED_1, s: 0};
-	const sharedOdds = [];
-
 	/* eslint-disable complexity */ // Heavily optimised hot function
 	function calculate_odds_nopad(total, targets, samples) {
 		/* eslint-enable complexity */
@@ -113,14 +127,23 @@
 		 * - ln((n + T - x - s)!)
 		 */
 
+		sharedOdds.l.length = 0;
+
 		// Shortcuts for simple values
 		if(samples === 0 || targets === 0) {
-			return FIXED_ODDS_1;
+			sharedOdds.l.push(1);
+			sharedOdds.s = 0;
+			return sharedOdds;
 		} else if(targets === total) {
-			return {l: FIXED_1, s: total - 1};
+			sharedOdds.l.push(1);
+			sharedOdds.s = total - 1;
+			return sharedOdds;
 		} else if(samples === 1) {
 			const p = targets / total;
-			return {l: [1 - p, p], s: 0};
+			sharedOdds.l.push(1 - p);
+			sharedOdds.l.push(p);
+			sharedOdds.s = 0;
+			return sharedOdds;
 		}
 
 		const B = targets + samples - total;
@@ -139,13 +162,13 @@
 
 		cur = Math.exp(cur);
 
-		const odds = sharedOdds;
-		odds.length = 0;
-
-		const s = Math.max(B, 0);
+		let n = Math.max(B, 0);
 		const limit = Math.min(samples, targets);
-		for(let n = s; n <= limit; ++ n) {
-			odds.push(cur);
+
+		sharedOdds.s = n;
+
+		for(; n <= limit; ++ n) {
+			sharedOdds.l.push(cur);
 
 			// A = foo / (targets - n)! / (samples - n)! / (n - B)! / n!
 			// B = foo / (targets-n-1)! / (samples-n-1)! / (n+1-B)! / (n+1)!
@@ -153,7 +176,7 @@
 			cur *= ((targets - n) * (samples - n)) / ((n + 1 - B) * (n + 1));
 		}
 
-		return {l: odds, s};
+		return sharedOdds;
 	}
 
 	function find_max(l) {
@@ -168,7 +191,10 @@
 		return ind;
 	}
 
+	/* eslint-disable complexity */ // Heavily optimised hot function
 	function apply_distribution(prob, audience, {value, count}, pCutoff) {
+		/* eslint-enable complexity */
+
 		const limit = prob.length;
 		const pCutoff2 = pCutoff * pCutoff;
 
@@ -180,10 +206,11 @@
 			const {l, s} = calculate_odds_nopad(audience, count, limit - n - 1);
 			const maxInd = find_max(l) + 1;
 			const oddsBegin = (s === 0) ? 1 : 0;
+			const nextPN = sharedMaps.get();
 
-			prob[n].forEach((p, v) => {
+			for(const [v, p] of prob[n]) {
 				if(p <= pCutoff) {
-					return;
+					continue;
 				}
 				for(let i = maxInd; (i --) > oddsBegin;) {
 					const pp = p * l[i];
@@ -201,20 +228,13 @@
 					const d = i + s;
 					accumulate(prob[n + d], v + d * value, pp);
 				}
-			});
-
-			const nextPN = sharedMapStarter;
-			if(s === 0) {
-				prob[n].forEach((p, v) => {
-					const pp = p * l[0];
-					if(pp > pCutoff) {
-						nextPN.set(v, pp);
-					}
-				});
+				const pp = p * l[0];
+				if(s === 0 && pp > pCutoff) {
+					nextPN.set(v, pp);
+				}
 			}
-			prob[n].clear();
-			sharedMapStarter = prob[n];
 
+			sharedMaps.put(prob[n]);
 			prob[n] = nextPN;
 		}
 	}
@@ -251,12 +271,11 @@
 			if(odds <= 0) {
 				continue;
 			}
-			prob[n].forEach((p, v) => {
-				const pp = p * odds;
-				if(pp > 0) {
-					accumulate(prob[n + i], v + i * value, pp);
+			for(const [v, p] of prob[n]) {
+				if(p > 0) {
+					accumulate(prob[n + i], v + i * value, p * odds);
 				}
-			});
+			}
 		}
 	}
 
@@ -269,12 +288,14 @@
 		 * use a Map for faster lookups.
 		 */
 
+		const prob = sharedProbList;
+		prob.length = 0;
+
 		// First dimension key = number of spent tickets so far
-		const prob = [];
 		for(let i = 0; i <= tickets; ++ i) {
 			// Second dimension key = total value so far
 			// Matrix values = probability
-			prob[i] = new Map();
+			prob[i] = sharedMaps.get();
 		}
 
 		// Begin with no tickets spent (value = 0, p = 1)
@@ -297,19 +318,28 @@
 
 		send_profiling('Accumulate', t1 - t0, LEVEL.debug);
 
-		return prob[tickets];
+		const result = prob[tickets];
+
+		// Return maps to shared pool
+		for(let i = 0; i < tickets; ++ i) {
+			sharedMaps.put(prob[i]);
+		}
+
+		return result;
 	}
 
 	function make_pmap(cumulativeP) {
 		const P = 1;
 		const VALUE = 2;
 
-		const pMap = new Map();
+		const pMap = sharedMaps.get();
 		for(let i = 0; i < cumulativeP.length; i += 3) {
 			pMap.set(cumulativeP[i + VALUE], cumulativeP[i + P]);
 		}
 		return pMap;
 	}
+
+	const VALUE_SORT = ([v1], [v2]) => (v1 - v2);
 
 	function extract_cumulative_probability(pMap, pCutoff) {
 		const CP = 0;
@@ -318,7 +348,7 @@
 
 		const data = Array.from(pMap.entries())
 			.filter((entry) => (entry[1] > pCutoff))
-			.sort(([v1], [v2]) => (v1 - v2));
+			.sort(VALUE_SORT);
 
 		let totalP = 0;
 		const cumulativeP = make_shared_float_array(data.length * 3);
@@ -347,7 +377,7 @@
 			return a;
 		}
 
-		const m = new Map();
+		const m = sharedMaps.get();
 		for(const [av, ap] of a.entries()) {
 			for(const [bv, bp] of b.entries()) {
 				const p = ap * bp;
@@ -361,7 +391,7 @@
 
 	function pow(pMap, power, pCutoff) {
 		if(power === 0) {
-			const p1Map = new Map();
+			const p1Map = sharedMaps.get();
 			p1Map.set(0, 1);
 			return p1Map;
 		}
@@ -388,34 +418,40 @@
 		const P = 1;
 		const VALUE = 2;
 
-		const pMap = new Map();
+		const pMap = sharedMaps.get();
 
-		parts.forEach(({p, r, value}) => {
+		for(const {p, r, value} of parts) {
 			for(let i = 0; i < r.length; i += 3) {
 				const newP = p * r[i + P];
 				if(newP > pCutoff) {
 					accumulate(pMap, value + r[i + VALUE], newP);
 				}
 			}
-		});
+		}
 
 		return pMap;
 	}
 
 	function message_handler_generate({prizes, tickets, pCutoff}) {
 		const pMap = calculate_probability_map(prizes, tickets, pCutoff);
-		return extract_cumulative_probability(pMap, pCutoff);
+		const result = extract_cumulative_probability(pMap, pCutoff);
+		sharedMaps.put(pMap);
+		return result;
 	}
 
 	function message_handler_pow({cumulativeP, power, pCutoff}) {
 		const pMap1 = make_pmap(cumulativeP);
 		const pMapN = pow(pMap1, power, pCutoff);
+		// Cannot be sure that pMapN != pMap1, so only return one of them
+		sharedMaps.put(pMap1);
 		return extract_cumulative_probability(pMapN, pCutoff);
 	}
 
 	function message_handler_compound({parts, pCutoff}) {
 		const pMap = compound(parts, pCutoff);
-		return extract_cumulative_probability(pMap, pCutoff);
+		const result = extract_cumulative_probability(pMap, pCutoff);
+		sharedMaps.put(pMap);
+		return result;
 	}
 
 	function message_handler(data) {
