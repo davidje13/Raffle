@@ -104,7 +104,7 @@ describe('calculate_odds', () => {
 		expect(odds[4]).toBeNear(1 / 7, 1e-6);
 	});
 
-	it('fills in certainties', () => {
+	it('fills in certainties due to full sampling', () => {
 		const odds = calculate_odds(3, 2, 3);
 
 		expect(odds.length).toEqual(4);
@@ -112,6 +112,24 @@ describe('calculate_odds', () => {
 		expect(odds[1]).toBeNear(0, 1e-6);
 		expect(odds[2]).toBeNear(1, 1e-6);
 		expect(odds[3]).toBeNear(0, 1e-6);
+	});
+
+	it('fills in certainties due to no targets', () => {
+		const odds = calculate_odds(3, 0, 2);
+
+		expect(odds.length).toEqual(3);
+		expect(odds[0]).toBeNear(1, 1e-6);
+		expect(odds[1]).toBeNear(0, 1e-6);
+		expect(odds[2]).toBeNear(0, 1e-6);
+	});
+
+	it('fills in certainties due to saturated targets', () => {
+		const odds = calculate_odds(3, 3, 2);
+
+		expect(odds.length).toEqual(3);
+		expect(odds[0]).toBeNear(0, 1e-6);
+		expect(odds[1]).toBeNear(0, 1e-6);
+		expect(odds[2]).toBeNear(1, 1e-6);
 	});
 });
 

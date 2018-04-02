@@ -82,7 +82,7 @@ module.exports = {
 		'lines-between-class-members': ['error'],
 		'max-depth': ['error', 3],
 		'max-len': ['error', {'ignoreUrls': true}],
-		'max-lines': ['error', 500],
+		'max-lines': ['error', 600],
 		'max-nested-callbacks': ['error', 5], // Includes jasmine blocks
 		'max-params': ['error', 4],
 		'max-statements': ['error', 20],
@@ -218,7 +218,6 @@ module.exports = {
 		'semi-style': ['error'],
 		'sort-imports': ['error'],
 		'sort-keys': ['error'],
-		'sort-vars': ['error'],
 		'space-before-blocks': ['error'],
 		'space-before-function-paren': ['error', 'never'],
 		'space-in-parens': ['error'],

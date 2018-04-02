@@ -96,6 +96,7 @@ if(typeof require !== 'function') {
 			this.lastMonths = 12;
 			this.lastGenPos = this.ticketOrder.length;
 			this.lastShow = SHOW_VALUE;
+			this.tmUpdate = null;
 
 			this.update = this.update.bind(this);
 
@@ -349,7 +350,7 @@ if(typeof require !== 'function') {
 		}
 
 		debounce_got_result() {
-			if(!this.tmUpdate) {
+			if(this.tmUpdate === null) {
 				this.tmUpdate = setTimeout(this.update, 0);
 			}
 		}

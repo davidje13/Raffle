@@ -16,13 +16,12 @@
 	const profilingLevel = LEVEL.none;
 
 	function send_profiling(name, millis, level) {
-		if(level < profilingLevel) {
-			return;
+		if(level >= profilingLevel) {
+			post.fn({
+				message: `${(millis * 0.001).toFixed(4)}s : ${name}`,
+				type: 'info',
+			});
 		}
-		post.fn({
-			message: `${(millis * 0.001).toFixed(4)}s : ${name}`,
-			type: 'info',
-		});
 	}
 
 	/*
@@ -52,6 +51,8 @@
 			return [array.buffer];
 		}
 	}
+
+	let sharedMapStarter = new Map();
 
 	function accumulate(map, key, value) {
 		const existing = map.get(key) || 0;
@@ -85,7 +86,14 @@
 		};
 	})();
 
-	function calculate_odds(total, targets, samples) {
+	// Share common immutable objects to reduce GC activity
+	const FIXED_1 = [1];
+	const FIXED_ODDS_1 = {l: FIXED_1, s: 0};
+	const sharedOdds = [];
+
+	/* eslint-disable complexity */ // Heavily optimised hot function
+	function calculate_odds_nopad(total, targets, samples) {
+		/* eslint-enable complexity */
 		/*
 		 * Computes a table of: (T = total, x = targets, s = samples)
 		 *
@@ -98,106 +106,135 @@
 		 *
 		 * + ln((T - x)!)
 		 * + ln((T - s)!)
-		 * + ln(x!)
-		 * + ln(s!)
 		 * - ln(T!)
 		 * - ln(n!)
-		 * - ln((x - n)!)
-		 * - ln((s - n)!)
+		 * + ln(x!) - ln((x - n)!)
+		 * + ln(s!) - ln((s - n)!)
 		 * - ln((n + T - x - s)!)
 		 */
 
-		// Shortcut for simple values
-		if(samples === 0) {
-			return [1];
+		// Shortcuts for simple values
+		if(samples === 0 || targets === 0) {
+			return FIXED_ODDS_1;
+		} else if(targets === total) {
+			return {l: FIXED_1, s: total - 1};
 		} else if(samples === 1) {
 			const p = targets / total;
-			return [1 - p, p];
+			return {l: [1 - p, p], s: 0};
 		}
 
-		const baseLnLarge = (
-			ln_factorial(total - samples)
-			- ln_factorial(total)
-			+ ln_factorial(total - targets)
-		);
-		const baseLnSmall = (
-			ln_factorial(targets)
-			+ ln_factorial(samples)
+		const B = targets + samples - total;
+
+		let cur = (
+			ln_factorial(total - samples) - ln_factorial(Math.abs(B))
+			+ ln_factorial(total - targets) - ln_factorial(total)
 		);
 
-		const odds = [];
-
-		let n = 0;
-		for(const limit = samples + targets - total; n < limit; ++ n) {
-			odds.push(0);
-		}
-		const B = total - targets - samples;
-		for(const limit = Math.min(samples, targets); n <= limit; ++ n) {
-			odds.push(Math.exp(
-				baseLnLarge
-				- ln_factorial(B + n)
-				- ln_factorial(targets - n)
-				+ baseLnSmall
-				- ln_factorial(n)
-				- ln_factorial(samples - n)
-			));
-		}
-		for(; n <= samples; ++ n) {
-			odds.push(0);
+		if(B > 0) {
+			cur += (
+				ln_factorial(targets) - ln_factorial(targets - B)
+				+ ln_factorial(samples) - ln_factorial(samples - B)
+			);
 		}
 
-		return odds;
+		cur = Math.exp(cur);
+
+		const odds = sharedOdds;
+		odds.length = 0;
+
+		const s = Math.max(B, 0);
+		const limit = Math.min(samples, targets);
+		for(let n = s; n <= limit; ++ n) {
+			odds.push(cur);
+
+			// A = foo / (targets - n)! / (samples - n)! / (n - B)! / n!
+			// B = foo / (targets-n-1)! / (samples-n-1)! / (n+1-B)! / (n+1)!
+			// B/A = ((targets - n) * (samples - n)) / ((n + 1 - B) * (n + 1))
+			cur *= ((targets - n) * (samples - n)) / ((n + 1 - B) * (n + 1));
+		}
+
+		return {l: odds, s};
+	}
+
+	function find_max(l) {
+		let max = 0;
+		let ind = 0;
+		for(let i = 0; i < l.length; ++ i) {
+			if(l[i] > max) {
+				max = l[i];
+				ind = i;
+			}
+		}
+		return ind;
 	}
 
 	function apply_distribution(prob, audience, {value, count}, pCutoff) {
 		const limit = prob.length;
 		const pCutoff2 = pCutoff * pCutoff;
-		let totalTm = 0;
 
 		for(let n = limit - 1; (n --) > 0;) {
 			if(prob[n].size === 0) {
 				continue;
 			}
-			const tm0 = perf_now();
-			const odds = calculate_odds(audience, count, limit - n - 1);
-			totalTm += perf_now() - tm0;
-			prob[n].forEach((p, v) => {
-				// Update current entry with new odds
-				// (Iteration order is fixed, so no risk of looping forever)
-				prob[n].set(v, p * odds[0]);
 
+			const {l, s} = calculate_odds_nopad(audience, count, limit - n - 1);
+			const maxInd = find_max(l) + 1;
+			const oddsBegin = (s === 0) ? 1 : 0;
+
+			prob[n].forEach((p, v) => {
 				if(p <= pCutoff) {
 					return;
 				}
-				for(let i = 1; i < odds.length; ++ i) {
-					const pp = p * odds[i];
-					if(pp > pCutoff2) {
-						accumulate(prob[n + i], v + i * value, pp);
+				for(let i = maxInd; (i --) > oddsBegin;) {
+					const pp = p * l[i];
+					if(pp <= pCutoff2) {
+						break;
 					}
+					const d = i + s;
+					accumulate(prob[n + d], v + d * value, pp);
+				}
+				for(let i = maxInd; i < l.length; ++ i) {
+					const pp = p * l[i];
+					if(pp <= pCutoff2) {
+						break;
+					}
+					const d = i + s;
+					accumulate(prob[n + d], v + d * value, pp);
 				}
 			});
+
+			const nextPN = sharedMapStarter;
+			if(s === 0) {
+				prob[n].forEach((p, v) => {
+					const pp = p * l[0];
+					if(pp > pCutoff) {
+						nextPN.set(v, pp);
+					}
+				});
+			}
+			prob[n].clear();
+			sharedMapStarter = prob[n];
+
+			prob[n] = nextPN;
 		}
-		send_profiling('Calculate odds', totalTm, LEVEL.debug);
 	}
 
 	function calculate_final_odds(total, targets, samples) {
 		// Simplification of calculate_odds;
 		// Final stage, so we only care about the case for n = samples
 
-		// Shortcut for simple values
-		if(samples < 2) {
-			return calculate_odds(total, targets, samples)[samples];
-		}
-
+		// Shortcuts for simple values
 		if(samples > targets) {
 			return 0;
+		} else if(samples === 0 || targets === total) {
+			return 1;
+		} else if(samples === 1) {
+			return targets / total;
 		}
 
 		return Math.exp(
-			ln_factorial(total - samples)
-			- ln_factorial(total)
-			+ ln_factorial(targets)
-			- ln_factorial(targets - samples)
+			ln_factorial(total - samples) - ln_factorial(total)
+			+ ln_factorial(targets) - ln_factorial(targets - samples)
 		);
 	}
 
@@ -416,6 +453,21 @@
 	function message_listener({data}) {
 		const {result, transfer} = message_handler(data);
 		post.fn(result, transfer);
+	}
+
+	function calculate_odds(total, targets, samples) {
+		const {l, s} = calculate_odds_nopad(total, targets, samples);
+		const odds = [];
+		while(odds.length < s) {
+			odds.push(0);
+		}
+		for(let i = 0; i < l.length; ++ i) {
+			odds.push(l[i]);
+		}
+		while(odds.length <= samples) {
+			odds.push(0);
+		}
+		return odds;
 	}
 
 	class SynchronousEngine {
