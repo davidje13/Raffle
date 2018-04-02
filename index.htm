@@ -17,7 +17,7 @@
 
 window.addEventListener('load', () => {
 	Raffle.set_engine(new SharedWebWorkerEngine({
-		workers: (navigator.hardwareConcurrency / 2) || 1,
+		workers: (navigator.hardwareConcurrency - 1) || 1,
 	}));
 
 	function to_apr(ratio, months) {
