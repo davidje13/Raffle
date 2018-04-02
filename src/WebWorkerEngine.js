@@ -37,14 +37,14 @@ if(typeof require !== 'function') {
 			this.workerFilePath = `${basePath}/raffle_worker.js`;
 		}
 
-		queue_task(trigger) {
+		queue_task(trigger, transfer) {
 			return new Promise((resolve) => {
 				const worker = new Worker(this.workerFilePath);
 				worker.addEventListener('message', worker_fn((data) => {
 					worker.terminate();
 					resolve(data);
 				}));
-				worker.postMessage(trigger);
+				worker.postMessage(trigger, transfer);
 			});
 		}
 	}
@@ -59,10 +59,10 @@ if(typeof require !== 'function') {
 				const thread = {
 					reject: null,
 					resolve: null,
-					run: ({reject, resolve, trigger}) => {
+					run: ({reject, resolve, transfer, trigger}) => {
 						thread.reject = reject;
 						thread.resolve = resolve;
-						thread.worker.postMessage(trigger);
+						thread.worker.postMessage(trigger, transfer);
 					},
 					worker: new Worker(workerFilePath),
 				};
@@ -80,15 +80,15 @@ if(typeof require !== 'function') {
 			}
 		}
 
-		queue_task(trigger, priority) {
+		queue_task(trigger, transfer, priority) {
 			return new Promise((resolve, reject) => {
 				for(const thread of this.threads) {
 					if(thread.resolve === null) {
-						thread.run({reject, resolve, trigger});
+						thread.run({reject, resolve, transfer, trigger});
 						return;
 					}
 				}
-				const o = {priority, reject, resolve, trigger};
+				const o = {priority, reject, resolve, transfer, trigger};
 				if(priority === 0) {
 					this.queue.push(o);
 				} else {

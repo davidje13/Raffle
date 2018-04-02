@@ -8,20 +8,6 @@ if(typeof require !== 'function') {
 	const SharedPromise = require('./SharedPromise');
 	const {WebWorkerEngine} = require('./WebWorkerEngine');
 
-	function find_last_binary(l, fn) {
-		let p0 = 0;
-		let p1 = l.length;
-		while(p0 + 1 < p1) {
-			const p = (p0 + p1) >> 1;
-			if(fn(l[p])) {
-				p0 = p;
-			} else {
-				p1 = p;
-			}
-		}
-		return p0;
-	}
-
 	function accumulate(map, key, value) {
 		if(value > 0) {
 			const existing = map.get(key) || 0;
@@ -92,15 +78,49 @@ if(typeof require !== 'function') {
 		};
 	}
 
-	const emptyResults = [{cp: 1, p: 1, value: 0}];
+	const CFIELDS = {
+		cp: 0,
+		p: 1,
+		value: 2,
+	};
+
+	function c_read(data, index, field) {
+		return data[index * 3 + field];
+	}
+
+	function c_data(data, index) {
+		const x = index * 3;
+		return {
+			cp: data[x],
+			p: data[x + 1],
+			value: data[x + 2],
+		};
+	}
+
+	function c_find_last_binary(data, field, fn) {
+		let p0 = 0;
+		let p1 = data.length / 3;
+		while(p0 + 1 < p1) {
+			const p = (p0 + p1) >> 1;
+			if(fn(c_read(data, p, field))) {
+				p0 = p;
+			} else {
+				p1 = p;
+			}
+		}
+		return p0;
+	}
+
+	const EMPTY_RESULTS = Float64Array.from([1, 1, 0]);
 
 	class Results {
 		constructor(engine, tickets, cumulativeP) {
 			this.engine = engine;
 			this.n = tickets;
 			this.cumulativeP = cumulativeP;
-			this.vmin = this.cumulativeP[0].value;
-			this.vmax = this.cumulativeP[this.cumulativeP.length - 1].value;
+			this.qty = this.cumulativeP.length / 3;
+			this.vmin = c_read(this.cumulativeP, 0, CFIELDS.value);
+			this.vmax = c_read(this.cumulativeP, this.qty - 1, CFIELDS.value);
 		}
 
 		tickets() {
@@ -116,7 +136,11 @@ if(typeof require !== 'function') {
 		}
 
 		values() {
-			return this.cumulativeP.map(({value}) => value);
+			const r = [];
+			for(let i = 0; i < this.qty; ++ i) {
+				r.push(c_read(this.cumulativeP, i, CFIELDS.value));
+			}
+			return r;
 		}
 
 		p_below(x) {
@@ -126,22 +150,24 @@ if(typeof require !== 'function') {
 			if(x > this.vmax) {
 				return 1;
 			}
-			const index = find_last_binary(
+			const index = c_find_last_binary(
 				this.cumulativeP,
-				({value}) => (value < x)
+				CFIELDS.value,
+				(value) => (value < x)
 			);
-			return this.cumulativeP[index].cp;
+			return c_read(this.cumulativeP, index, CFIELDS.cp);
 		}
 
 		exact_probability(x) {
 			if(x < this.vmin || x > this.vmax) {
 				return 0;
 			}
-			const index = find_last_binary(
+			const index = c_find_last_binary(
 				this.cumulativeP,
-				({value}) => (value <= x)
+				CFIELDS.value,
+				(value) => (value <= x)
 			);
-			const cur = this.cumulativeP[index];
+			const cur = c_data(this.cumulativeP, index);
 			if(cur.value !== x) {
 				return 0;
 			}
@@ -155,21 +181,27 @@ if(typeof require !== 'function') {
 
 		percentile(percent) {
 			const frac = percent * 0.01;
-			if(frac <= this.cumulativeP[0].cp) {
+			if(frac <= c_read(this.cumulativeP, 0, CFIELDS.cp)) {
 				return this.vmin;
 			}
 			if(frac >= 1) {
 				return this.vmax;
 			}
-			const index = find_last_binary(
+			const index = c_find_last_binary(
 				this.cumulativeP,
-				({cp}) => (cp < frac)
+				CFIELDS.cp,
+				(cp) => (cp < frac)
 			) + 1;
-			return this.cumulativeP[index].value;
+			return c_read(this.cumulativeP, index, CFIELDS.value);
 		}
 
 		mean() {
-			return this.cumulativeP.reduce((v, {p, value}) => v + p * value, 0);
+			let m = 0;
+			for(let i = 0; i < this.qty; ++ i) {
+				const {p, value} = c_data(this.cumulativeP, i);
+				m += p * value;
+			}
+			return m;
 		}
 
 		median() {
@@ -179,12 +211,13 @@ if(typeof require !== 'function') {
 		mode() {
 			let bestValue = null;
 			let bestP = 0;
-			this.cumulativeP.forEach(({p, value}) => {
+			for(let i = 0; i < this.qty; ++ i) {
+				const p = c_read(this.cumulativeP, i, CFIELDS.p);
 				if(p >= bestP) {
-					bestValue = value;
+					bestValue = c_read(this.cumulativeP, i, CFIELDS.value);
 					bestP = p;
 				}
-			});
+			}
 			return bestValue;
 		}
 
@@ -195,7 +228,7 @@ if(typeof require !== 'function') {
 				return Promise.resolve(new Results(
 					this.engine,
 					this.n,
-					emptyResults
+					EMPTY_RESULTS
 				));
 			} else if(power === 1) {
 				return Promise.resolve(this);
@@ -206,7 +239,7 @@ if(typeof require !== 'function') {
 				pCutoff,
 				power,
 				type: 'pow',
-			}, priority).then(({cumulativeP}) => new Results(
+			}, [], priority).then(({cumulativeP}) => new Results(
 				this.engine,
 				this.n,
 				cumulativeP
@@ -265,7 +298,7 @@ if(typeof require !== 'function') {
 				return Promise.resolve(new Results(
 					this.engine,
 					tickets,
-					emptyResults
+					EMPTY_RESULTS
 				));
 			}
 
@@ -275,7 +308,7 @@ if(typeof require !== 'function') {
 					prizes: this.rarePrizes,
 					tickets,
 					type: 'generate',
-				}, priority).then(({cumulativeP}) => new Results(
+				}, [], priority).then(({cumulativeP}) => new Results(
 					this.engine,
 					tickets,
 					cumulativeP
@@ -296,7 +329,7 @@ if(typeof require !== 'function') {
 				return Promise.resolve(new Results(
 					this.engine,
 					tickets,
-					emptyResults
+					EMPTY_RESULTS
 				));
 			}
 
@@ -309,20 +342,26 @@ if(typeof require !== 'function') {
 			const ticketCache = read_cache(optCache, tickets, () => []);
 
 			const step = (res) => {
-				const promises = res.cumulativeP.map(({p, value}) => this.enter(
-					Math.min(
-						tickets + Math.floor(value / ticketCost),
-						maxTickets
-					),
-					{priority}
-				).then((r) => ({p, r: r.cumulativeP, value})));
+				const promises = [];
+				for(let i = 0; i < res.qty; ++ i) {
+					const {p, value} = c_data(res.cumulativeP, i);
+					promises.push(
+						this.enter(
+							Math.min(
+								tickets + Math.floor(value / ticketCost),
+								maxTickets
+							),
+							{priority}
+						).then((r) => ({p, r: r.cumulativeP, value}))
+					);
+				}
 
 				return Promise.all(promises)
 					.then((parts) => this.engine.queue_task({
 						pCutoff: this.pCutoff,
 						parts,
 						type: 'compound',
-					}, priority + 1))
+					}, [], priority + 1))
 					.then(({cumulativeP}) => new Results(
 						this.engine,
 						tickets,

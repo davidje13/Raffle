@@ -15,15 +15,27 @@ class SpyEngine {
 	}
 }
 
+function make_cp(data) {
+	const cumulativeP = new Float64Array(data.length * 3);
+	for(let i = 0; i < data.length; ++ i) {
+		const x = i * 3;
+		const d = data[i];
+		cumulativeP[x] = d.cp;
+		cumulativeP[x + 1] = d.p;
+		cumulativeP[x + 2] = d.value;
+	}
+	return cumulativeP;
+}
+
 describe('Raffle', () => {
 	let engine = null;
 
 	beforeEach(() => {
 		engine = new SpyEngine({
-			cumulativeP: [
+			cumulativeP: make_cp([
 				{cp: 0.5, p: 0.5, value: 0},
 				{cp: 1.0, p: 0.5, value: 1},
-			],
+			]),
 		});
 	});
 
@@ -114,10 +126,10 @@ describe('Raffle', () => {
 		it('stores calculated probabilities in the result', (done) => {
 			const raffle = new Raffle({audience: 7, engine});
 			raffle.enter(2).then((result) => {
-				expect(result.cumulativeP).toEqual([
+				expect(result.cumulativeP).toEqual(make_cp([
 					{cp: 0.5, p: 0.5, value: 0},
 					{cp: 1.0, p: 0.5, value: 1},
-				]);
+				]));
 				done();
 			});
 		});
@@ -129,11 +141,11 @@ describe('Raffle Result', () => {
 
 	beforeEach((done) => {
 		const engine = new SpyEngine({
-			cumulativeP: [
+			cumulativeP: make_cp([
 				{cp: 0.2, p: 0.2, value: 0},
 				{cp: 0.6, p: 0.4, value: 1},
 				{cp: 1.0, p: 0.4, value: 2},
-			],
+			]),
 		});
 
 		const raffle = new Raffle({audience: 7, engine});

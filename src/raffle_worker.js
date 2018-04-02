@@ -236,30 +236,40 @@
 	}
 
 	function make_pmap(cumulativeP) {
+		const P = 1;
+		const VALUE = 2;
+
 		const pMap = new Map();
-		cumulativeP.forEach(({p, value}) => {
-			pMap.set(value, p);
-		});
+		for(let i = 0; i < cumulativeP.length; i += 3) {
+			pMap.set(cumulativeP[i + VALUE], cumulativeP[i + P]);
+		}
 		return pMap;
 	}
 
 	function extract_cumulative_probability(pMap, pCutoff) {
-		const cumulativeP = Array.from(pMap.entries())
-			.map(([value, p]) => ({cp: 0, p, value}))
-			.filter(({p}) => (p > pCutoff))
-			.sort((a, b) => (a.value - b.value));
+		const CP = 0;
+		const P = 1;
+		const VALUE = 2;
+
+		const data = Array.from(pMap.entries())
+			.filter((entry) => (entry[1] > pCutoff))
+			.sort(([v1], [v2]) => (v1 - v2));
 
 		let totalP = 0;
-		for(let i = 0; i < cumulativeP.length; ++ i) {
-			totalP += cumulativeP[i].p;
-			cumulativeP[i].cp = totalP;
+		const cumulativeP = new Float64Array(data.length * 3);
+		for(let i = 0; i < data.length; ++ i) {
+			totalP += data[i][1];
+			cumulativeP[i * 3 + CP] = totalP;
 		}
 
 		// Normalise to [0 1] to correct for numeric errors
-		cumulativeP.forEach((x) => {
-			x.cp /= totalP;
-			x.p /= totalP;
-		});
+		for(let i = 0; i < data.length; ++ i) {
+			const x = i * 3;
+			const [value, p] = data[i];
+			cumulativeP[x + CP] /= totalP;
+			cumulativeP[x + P] = p / totalP;
+			cumulativeP[x + VALUE] = value;
+		}
 
 		return {cumulativeP, totalP};
 	}
@@ -310,15 +320,18 @@
 	}
 
 	function compound(parts, pCutoff) {
+		const P = 1;
+		const VALUE = 2;
+
 		const pMap = new Map();
 
-		parts.forEach((part) => {
-			part.r.forEach((pt) => {
-				const p = part.p * pt.p;
-				if(p > pCutoff) {
-					accumulate(pMap, part.value + pt.value, p);
+		parts.forEach(({p, r, value}) => {
+			for(let i = 0; i < r.length; i += 3) {
+				const newP = p * r[i + P];
+				if(newP > pCutoff) {
+					accumulate(pMap, value + r[i + VALUE], newP);
 				}
-			});
+			}
 		});
 
 		return pMap;
@@ -326,36 +339,18 @@
 
 	function message_handler_generate({prizes, tickets, pCutoff}) {
 		const pMap = calculate_probability_map(prizes, tickets, pCutoff);
-		const result = extract_cumulative_probability(pMap, pCutoff);
-
-		return {
-			cumulativeP: result.cumulativeP,
-			normalisation: result.totalP,
-			type: 'result',
-		};
+		return extract_cumulative_probability(pMap, pCutoff);
 	}
 
 	function message_handler_pow({cumulativeP, power, pCutoff}) {
 		const pMap1 = make_pmap(cumulativeP);
 		const pMapN = pow(pMap1, power, pCutoff);
-		const result = extract_cumulative_probability(pMapN, pCutoff);
-
-		return {
-			cumulativeP: result.cumulativeP,
-			normalisation: result.totalP,
-			type: 'result',
-		};
+		return extract_cumulative_probability(pMapN, pCutoff);
 	}
 
 	function message_handler_compound({parts, pCutoff}) {
 		const pMap = compound(parts, pCutoff);
-		const result = extract_cumulative_probability(pMap, pCutoff);
-
-		return {
-			cumulativeP: result.cumulativeP,
-			normalisation: result.totalP,
-			type: 'result',
-		};
+		return extract_cumulative_probability(pMap, pCutoff);
 	}
 
 	function message_handler(data) {
@@ -380,17 +375,25 @@
 		const tE = perf_now();
 		send_profiling(`Total for ${label}`, tE - tB, LEVEL.info);
 
-		return result;
+		return {
+			result: {
+				cumulativeP: result.cumulativeP,
+				normalisation: result.totalP,
+				type: 'result',
+			},
+			transfer: [result.cumulativeP.buffer],
+		};
 	}
 
 	function message_listener({data}) {
-		post.fn(message_handler(data));
+		const {result, transfer} = message_handler(data);
+		post.fn(result, transfer);
 	}
 
 	class SynchronousEngine {
 		static queue_task(trigger) {
 			return new Promise((resolve) => {
-				resolve(message_handler(trigger));
+				resolve(message_handler(trigger).result);
 			});
 		}
 	}
@@ -400,7 +403,7 @@
 			if(self.performance) {
 				perf_now = () => self.performance.now();
 			}
-			post.fn = (msg) => self.postMessage(msg);
+			post.fn = (msg, transfer) => self.postMessage(msg, transfer);
 			self.addEventListener('message', message_listener);
 		}
 	}
