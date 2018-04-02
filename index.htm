@@ -16,7 +16,9 @@
 <script>
 
 window.addEventListener('load', () => {
-	Raffle.set_engine(new SharedWebWorkerEngine({workers: 8}));
+	Raffle.set_engine(new SharedWebWorkerEngine({
+		workers: (navigator.hardwareConcurrency / 2) || 1,
+	}));
 
 	function to_apr(ratio, months) {
 		return Math.pow(1 + ratio, 12 / months) - 1;
@@ -55,7 +57,6 @@ window.addEventListener('load', () => {
 		maxTickets,
 		minTickets: 0,
 		stepTickets: 100,
-		stepTicketsLowRes: 500,
 		ticketCost,
 	});
 

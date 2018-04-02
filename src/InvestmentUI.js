@@ -64,7 +64,6 @@ if(typeof require !== 'function') {
 			maxTickets,
 			minTickets,
 			stepTickets,
-			stepTicketsLowRes = 0,
 			ticketCost = 1,
 		}) {
 			this.GraphClass = GraphClass;
@@ -76,11 +75,7 @@ if(typeof require !== 'function') {
 				maxTickets,
 				stepTickets
 			);
-			this.ticketOrderLowRes = make_ticket_order(
-				minTickets,
-				maxTickets,
-				stepTicketsLowRes || stepTickets
-			);
+			this.batchSize = 32;
 
 			this.fmtCount = UIUtils.make_formatter({});
 			this.fmtValue = UIUtils.make_formatter({
@@ -99,6 +94,7 @@ if(typeof require !== 'function') {
 
 			this.lastWinnings = WINNINGS_TAKE;
 			this.lastMonths = 12;
+			this.lastGenPos = this.ticketOrder.length;
 			this.lastShow = SHOW_VALUE;
 
 			this.update = this.update.bind(this);
@@ -245,6 +241,7 @@ if(typeof require !== 'function') {
 			}
 			this.lastWinnings = winnings;
 			this.lastMonths = null;
+			this.lastGenPos = this.ticketOrder.length;
 		}
 
 		update_months(months) {
@@ -254,58 +251,68 @@ if(typeof require !== 'function') {
 			this.lastMonths = months;
 
 			this.loading = 0;
-			this.results.length = 0;
+			this.results = this.ticketOrder.map(() => null);
 			const nonce = {};
 			this.resultsNonce = nonce;
-			let order = null;
+
+			let generator = null;
 
 			switch(this.lastWinnings) {
 			case WINNINGS_TAKE:
-				order = this.ticketOrder;
+				generator = (v) => this.raffle
+					.enter(v, {priority: 20})
+					.then((result) => result.pow(months, {
+						pCutoff,
+						priority: 30,
+					}));
 				break;
 			case WINNINGS_INVEST:
-				order = this.ticketOrderLowRes;
-				break;
-			}
-
-			order.forEach(({i, v}) => {
-				this.results[i] = null;
-				++ this.loading;
-
-				let promise = null;
-				switch(this.lastWinnings) {
-				case WINNINGS_TAKE:
-					promise = this.raffle.enter(v, {priority: 20})
-						.then((result) => result.pow(months, {
-							pCutoff,
-							priority: 30,
-						}));
-					break;
-				case WINNINGS_INVEST:
-					promise = this.raffle.compound(v, months, {
+				generator = (v) => this.raffle
+					.compound(v, months, {
 						maxTickets: this.maxTickets,
 						priority: 10,
 						ticketCost: this.ticketCost,
 					});
-					break;
-				}
+				break;
+			}
 
-				promise
-					.then((result) => {
-						if(this.resultsNonce === nonce) {
-							this.results[i] = result;
-							this.lastShow = null;
-							-- this.loading;
-							this.debounce_got_result();
-						}
-					})
-					.catch(() => {
-						if(this.resultsNonce === nonce) {
-							-- this.loading;
-							this.debounce_got_result();
-						}
-					});
-			});
+			const collect = (i, result) => {
+				if(this.resultsNonce === nonce) {
+					if(result !== null) {
+						this.results[i] = result;
+						this.lastShow = null;
+					}
+					-- this.loading;
+					this.debounce_got_result();
+				}
+			};
+
+			this.generator = ({i, v}) => {
+				++ this.loading;
+				generator(v)
+					.then((result) => collect(i, result))
+					.catch(() => collect(i, null));
+			};
+
+			this.lastGenPos = 0;
+		}
+
+		next_generate_batch() {
+			if(this.loading > 0) {
+				return;
+			}
+			if(this.lastGenPos >= this.ticketOrder.length) {
+				return;
+			}
+
+			const limit = Math.min(
+				this.lastGenPos + this.batchSize,
+				this.ticketOrder.length
+			);
+			for(let i = this.lastGenPos; i < limit; ++ i) {
+				this.generator(this.ticketOrder[i]);
+			}
+			this.lastGenPos = limit;
 		}
 
 		update_show(show) {
@@ -327,6 +334,7 @@ if(typeof require !== 'function') {
 					: WINNINGS_INVEST
 			);
 			this.update_months(read_ui_num(this.fMonths, 1, this.maxMonths));
+			this.next_generate_batch();
 			this.update_show(
 				this.fShowValue.checked
 					? SHOW_VALUE
