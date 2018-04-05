@@ -20,13 +20,9 @@ window.addEventListener('load', () => {
 		workers: (navigator.hardwareConcurrency - 1) || 1,
 	}));
 
-	function to_apr(ratio, months) {
-		return Math.pow(1 + ratio, 12 / months) - 1;
-	}
-
 	const markers = [
 		{name: 'Averages'},
-		{col: '#0033CC', name: 'Mean', scale: to_apr, value: (r) => r.mean()},
+		{col: '#0033CC', name: 'Mean', value: (r) => r.mean()},
 		{col: '#0077AA', name: 'Median', value: (r) => r.median()},
 		{col: '#009900', name: 'Mode', value: (r) => r.mode()},
 
@@ -37,6 +33,7 @@ window.addEventListener('load', () => {
 	];
 
 	const currencyCode = 'GBP';
+	const maxMonths = 12 * 20;
 	const maxTickets = 50000;
 	const ticketCost = 1;
 
@@ -47,6 +44,7 @@ window.addEventListener('load', () => {
 		defaultTickets: 10000,
 		graphLimit: 10000,
 		markers,
+		maxMonths: 12 * 30,
 		maxTickets,
 		ticketCost,
 	});
@@ -54,6 +52,7 @@ window.addEventListener('load', () => {
 		GraphClass: Graph,
 		currencyCode,
 		markers,
+		maxMonths: 12 * 10,
 		maxTickets,
 		minTickets: 0,
 		stepTickets: 100,

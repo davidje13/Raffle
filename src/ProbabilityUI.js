@@ -31,8 +31,8 @@ if(typeof require !== 'function') {
 		return [{x, y: 0}, {x, y: 1}];
 	}
 
-	function only12(ratio, months) {
-		return (months === 12) ? ratio : Number.NaN;
+	function to_apr(ratio, months) {
+		return Math.pow(1 + ratio, 12 / months) - 1;
 	}
 
 	const WINNINGS_TAKE = 0;
@@ -47,11 +47,12 @@ if(typeof require !== 'function') {
 			defaultTickets = 1,
 			graphLimit,
 			markers = [],
+			maxMonths = Number.POSITIVE_INFINITY,
 			maxTickets = Number.POSITIVE_INFINITY,
 			ticketCost = 1,
 		}) {
 			this.GraphClass = GraphClass;
-			this.maxMonths = 36;
+			this.maxMonths = maxMonths;
 			this.maxTickets = maxTickets;
 			this.ticketCost = ticketCost;
 			this.graphLimit = graphLimit;
@@ -232,7 +233,7 @@ if(typeof require !== 'function') {
 						col: m.col,
 						fAPR: make('span'),
 						fVal: make('span'),
-						scale: m.scale || only12,
+						scale: m.scale || to_apr,
 						value: m.value,
 					};
 					o = make('li', {}, [

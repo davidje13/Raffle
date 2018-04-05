@@ -61,13 +61,14 @@ if(typeof require !== 'function') {
 			GraphClass,
 			currencyCode,
 			markers,
+			maxMonths = Number.POSITIVE_INFINITY,
 			maxTickets,
 			minTickets,
 			stepTickets,
 			ticketCost = 1,
 		}) {
 			this.GraphClass = GraphClass;
-			this.maxMonths = 36;
+			this.maxMonths = maxMonths;
 			this.ticketCost = ticketCost;
 			this.maxTickets = maxTickets;
 			this.ticketOrder = make_ticket_order(

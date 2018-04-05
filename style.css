@@ -109,6 +109,11 @@ input[type=number] {
 	vertical-align: baseline;
 }
 
+input[type=number]:invalid {
+	border-color: #AA0000;
+	background: #FFEEEEEE;
+}
+
 input[type=radio] {
 	vertical-align: top;
 	margin-right: 5px;
