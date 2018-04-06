@@ -8,6 +8,8 @@
 		e.stopPropagation();
 	}
 
+	const NON_PASSIVE = {passive: false};
+
 	class UIUtils {
 		static make_text(text = '') {
 			return document.createTextNode(text);
@@ -94,11 +96,11 @@
 		}
 
 		static block_scroll(element) {
-			element.addEventListener('wheel', block);
+			element.addEventListener('wheel', block, NON_PASSIVE);
 		}
 
 		static unblock_scroll(element) {
-			element.removeEventListener('wheel', block);
+			element.removeEventListener('wheel', block, NON_PASSIVE);
 		}
 
 		static show_popup(content) {
@@ -114,7 +116,7 @@
 				e.preventDefault();
 				UIUtils.unblock_scroll(shade);
 				UIUtils.unblock_scroll(hold);
-				inner.removeEventListener('wheel', stopProp);
+				inner.removeEventListener('wheel', stopProp, NON_PASSIVE);
 				shade.removeEventListener('click', doClose);
 				close.removeEventListener('click', doClose);
 				document.body.removeChild(shade);
@@ -123,7 +125,7 @@
 
 			UIUtils.block_scroll(shade);
 			UIUtils.block_scroll(hold);
-			inner.addEventListener('wheel', stopProp);
+			inner.addEventListener('wheel', stopProp, NON_PASSIVE);
 			shade.addEventListener('click', doClose);
 			close.addEventListener('click', doClose);
 
