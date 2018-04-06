@@ -96,15 +96,22 @@ if(typeof require !== 'function') {
 		}
 
 		build_ui(markers) {
+			const tabulate = make('button', {
+				'class': 'tabulate',
+				'type': 'button',
+			}, ['Tabulate']);
+
+			tabulate.addEventListener('click', () => {
+				const table = UIUtils.make_table(this.tabulate());
+				table.addEventListener('click', () => UIUtils.select(table));
+				UIUtils.show_popup(table);
+			});
+
 			const form = make('form', {'action': '#'}, [
 				this.build_options(),
 				this.build_graph(),
 				this.build_key(markers),
-				make('button', {
-					'class': 'tabulate',
-					'disabled': 'disabled',
-					'type': 'button',
-				}, ['Tabulate']),
+				tabulate,
 			]);
 			form.addEventListener('submit', (e) => e.preventDefault());
 			this.section = make('section', {'class': 'probability'}, [form]);
@@ -415,6 +422,21 @@ if(typeof require !== 'function') {
 			this.graph.set(data, {updateBounds: false});
 
 			this.graph.render();
+		}
+
+		tabulate() {
+			const result = this.power;
+			if(!result) {
+				return [['No data']];
+			}
+
+			const rows = [['Value', 'p(= value)', 'p(\u2265 value)']];
+			for(const i of result.values()) {
+				const e = result.exact_probability(i);
+				const r = result.range_probability(i, Number.POSITIVE_INFINITY);
+				rows.push([this.fmtMoney(i), e.toFixed(10), r.toFixed(10)]);
+			}
+			return rows;
 		}
 
 		dom() {

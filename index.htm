@@ -1,5 +1,6 @@
 <html lang="en">
 <head>
+<meta charset="utf-8">
 <link rel="stylesheet" href="style.css" />
 <link rel="icon" href="favicon.png" />
 <script src="src/SharedPromise.js"></script>
@@ -27,9 +28,24 @@ window.addEventListener('load', () => {
 		{col: '#009900', name: 'Mode', value: (r) => r.mode()},
 
 		{name: 'Percentiles'},
-		{col: '#CCAA66', name: '25th', value: (r) => r.percentile(25)},
-		{col: '#AA66FF', name: '75th', value: (r) => r.percentile(75)},
-		{col: '#CC6666', name: '95th', value: (r) => r.percentile(95)},
+		{
+			col: '#CCAA66',
+			fullName: '25th Percentile',
+			name: '25th',
+			value: (r) => r.percentile(25),
+		},
+		{
+			col: '#AA66FF',
+			fullName: '75th Percentile',
+			name: '75th',
+			value: (r) => r.percentile(75),
+		},
+		{
+			col: '#CC6666',
+			fullName: '95th Percentile',
+			name: '95th',
+			value: (r) => r.percentile(95),
+		},
 	];
 
 	const currencyCode = 'GBP';

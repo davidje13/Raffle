@@ -1,6 +1,13 @@
 'use strict';
 
 (() => {
+	function block(e) {
+		e.preventDefault();
+	}
+	function stopProp(e) {
+		e.stopPropagation();
+	}
+
 	class UIUtils {
 		static make_text(text = '') {
 			return document.createTextNode(text);
@@ -25,6 +32,14 @@
 				}
 			}
 			return o;
+		}
+
+		static select(element) {
+			const range = document.createRange();
+			range.selectNodeContents(element);
+			const selection = window.getSelection();
+			selection.removeAllRanges();
+			selection.addRange(range);
 		}
 
 		static make_formatter(opts, locale) {
@@ -58,6 +73,62 @@
 			} else {
 				return '(near-)impossible';
 			}
+		}
+
+		static make_table(data) {
+			const body = data.slice();
+			const head = [body.shift()];
+
+			return UIUtils.make('table', {}, [
+				UIUtils.make('thead', {}, head.map(
+					(row) => UIUtils.make('tr', {}, row.map(
+						(value) => UIUtils.make('th', {}, [String(value)])
+					))
+				)),
+				UIUtils.make('tbody', {}, body.map(
+					(row) => UIUtils.make('tr', {}, row.map(
+						(value) => UIUtils.make('td', {}, [String(value)])
+					))
+				)),
+			]);
+		}
+
+		static block_scroll(element) {
+			element.addEventListener('wheel', block);
+		}
+
+		static unblock_scroll(element) {
+			element.removeEventListener('wheel', block);
+		}
+
+		static show_popup(content) {
+			const shade = UIUtils.make('div', {'class': 'shade'});
+			const close = UIUtils.make('a', {'class': 'close', 'href': '#'});
+			const inner = UIUtils.make('div', {'class': 'scroller'}, [content]);
+			const hold = UIUtils.make('div', {'class': 'popup'}, [
+				inner,
+				close,
+			]);
+
+			function doClose(e) {
+				e.preventDefault();
+				UIUtils.unblock_scroll(shade);
+				UIUtils.unblock_scroll(hold);
+				inner.removeEventListener('wheel', stopProp);
+				shade.removeEventListener('click', doClose);
+				close.removeEventListener('click', doClose);
+				document.body.removeChild(shade);
+				document.body.removeChild(hold);
+			}
+
+			UIUtils.block_scroll(shade);
+			UIUtils.block_scroll(hold);
+			inner.addEventListener('wheel', stopProp);
+			shade.addEventListener('click', doClose);
+			close.addEventListener('click', doClose);
+
+			document.body.appendChild(shade);
+			document.body.appendChild(hold);
 		}
 	}
 

@@ -84,6 +84,10 @@ if(typeof require !== 'function') {
 				minimumFractionDigits: 0,
 				style: 'currency',
 			});
+			this.fmtMoney = UIUtils.make_formatter({
+				currency: currencyCode,
+				style: 'currency',
+			});
 			this.fmtRatio = UIUtils.make_formatter({
 				minimumFractionDigits: 2,
 				style: 'percent',
@@ -105,15 +109,22 @@ if(typeof require !== 'function') {
 		}
 
 		build_ui(markers) {
+			const tabulate = make('button', {
+				'class': 'tabulate',
+				'type': 'button',
+			}, ['Tabulate']);
+
+			tabulate.addEventListener('click', () => {
+				const table = UIUtils.make_table(this.tabulate());
+				table.addEventListener('click', () => UIUtils.select(table));
+				UIUtils.show_popup(table);
+			});
+
 			const form = make('form', {'action': '#'}, [
 				this.build_options(),
 				this.build_graph(),
 				this.build_key(markers),
-				make('button', {
-					'class': 'tabulate',
-					'disabled': 'disabled',
-					'type': 'button',
-				}, ['Tabulate']),
+				tabulate,
 			]);
 			form.addEventListener('submit', (e) => e.preventDefault());
 			this.section = make('section', {'class': 'investment'}, [form]);
@@ -215,6 +226,7 @@ if(typeof require !== 'function') {
 				if(m.value) {
 					const marker = {
 						col: m.col,
+						fullName: m.fullName || m.name,
 						value: m.value,
 					};
 					o = make('li', {}, [m.name]);
@@ -433,6 +445,28 @@ if(typeof require !== 'function') {
 
 			this.graph.set(data, {updateBounds: true});
 			this.graph.render();
+		}
+
+		tabulate() {
+			const rows = [['Tickets']];
+			this.markers.forEach((m) => {
+				rows[0].push(`${m.fullName} Value`);
+			});
+			this.results.forEach((r) => {
+				if(!r) {
+					return;
+				}
+
+				const row = [r.tickets()];
+				this.markers.forEach((m) => {
+					row.push(this.fmtMoney(m.value(r)));
+				});
+				rows.push(row);
+			});
+			if(rows.length === 1) {
+				return [['No data']];
+			}
+			return rows;
 		}
 
 		dom() {
