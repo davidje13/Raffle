@@ -1,7 +1,14 @@
 'use strict';
 
-const {SynchronousEngine} = require('../src/raffle_worker');
 const Raffle = require('../src/Raffle');
+const prep = require('../src/raffle_worker');
+
+let SynchronousEngine;
+
+beforeAll(async () => {
+	const v = await prep;
+	SynchronousEngine = v.SynchronousEngine;
+});
 
 describe('Raffle Integration', () => {
 	it('calculates probabilities and returns them', async () => {

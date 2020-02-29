@@ -17,6 +17,7 @@
   ],
   "main": "Raffle",
   "scripts": {
+    "build": "mkdir -p wasm/dist && emcc -O3 wasm/src/main.c -o wasm/dist/main.wasm",
     "check": "npm run lint && npm run test",
     "lint": "eslint . --ext .js --ignore-pattern '!.eslintrc.js'",
     "start": "http-server",

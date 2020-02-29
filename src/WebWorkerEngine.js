@@ -22,6 +22,9 @@ if(typeof require !== 'function') {
 	function worker_fn(callback) {
 		return (event) => {
 			switch(event.data.type) {
+			case 'loaded':
+				callback(undefined);
+				break;
 			case 'info':
 				window.console.log(event.data.message);
 				break;
@@ -41,10 +44,13 @@ if(typeof require !== 'function') {
 			return new Promise((resolve) => {
 				const worker = new Worker(this.workerFilePath);
 				worker.addEventListener('message', worker_fn((data) => {
-					worker.terminate();
-					resolve(data);
+					if (data === undefined) {
+						worker.postMessage(trigger, transfer);
+					} else {
+						worker.terminate();
+						resolve(data);
+					}
 				}));
-				worker.postMessage(trigger, transfer);
 			});
 		}
 	}
@@ -58,7 +64,7 @@ if(typeof require !== 'function') {
 			for(let i = 0; i < workers; ++ i) {
 				const thread = {
 					reject: null,
-					resolve: null,
+					resolve: 1, // initial loading marker
 					run: ({reject, resolve, transfer, trigger}) => {
 						thread.reject = reject;
 						thread.resolve = resolve;
@@ -74,7 +80,9 @@ if(typeof require !== 'function') {
 						thread.reject = null;
 						thread.resolve = null;
 					}
-					fn(data);
+					if (data !== undefined) {
+						fn(data);
+					}
 				}));
 				this.threads.push(thread);
 			}

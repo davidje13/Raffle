@@ -1,9 +1,61 @@
 'use strict';
 
-/* eslint-disable max-statements */
-(() => {
-	/* eslint-enable max-statements */
+function loadWASM() {
+	const memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
+	const importObject = {env: {memory}};
 
+	function handleLoaded({instance}) {
+		instance.exports._prep();
+
+		function readPositionedList(ptr) {
+			const sn = new Int32Array(memory.buffer, ptr, 2);
+			const [s, n] = sn;
+			if (s < 0) {
+				throw new Error('calculate_odds_nopad requries ' + n + ' entries');
+			}
+			return {
+				l: new Float64Array(memory.buffer, ptr + sn.byteLength, n),
+				s,
+			};
+		}
+
+		return {
+			calculate_odds_nopad: (total, targets, samples) => {
+				return readPositionedList(instance.exports._calculate_odds_nopad(
+					total,
+					targets,
+					samples,
+				));
+			},
+			calculate_final_odds: instance.exports._calculate_final_odds,
+			ln_factorial: instance.exports._ln_factorial,
+		};
+	}
+
+	if (typeof fetch !== 'function') {
+		const fs = require('fs');
+		const bytes = fs.readFileSync('./wasm/dist/main.wasm');
+		return WebAssembly.instantiate(bytes, importObject).then(handleLoaded);
+	}
+
+	const request = fetch('../wasm/dist/main.wasm');
+	if (WebAssembly.instantiateStreaming) {
+		return WebAssembly
+			.instantiateStreaming(request, importObject)
+			.then(handleLoaded);
+	} else {
+		return request
+			.then((res) => res.arrayBuffer())
+			.then((bytes) => WebAssembly.instantiate(bytes, importObject))
+			.then(handleLoaded);
+	}
+}
+
+const prep = loadWASM().then(({
+	calculate_final_odds,
+	calculate_odds_nopad,
+	ln_factorial,
+}) => {
 	const post = {fn: () => null};
 	let perf_now = () => 0;
 
@@ -24,36 +76,12 @@
 		}
 	}
 
-	/*
-	 * Once generated, the data does not change, so sharing it is a safe thing
-	 * to do and provides a BIG performance boost for .compound()
-	 *
-	 * Sadly, SharedArrayBuffer has been disabled by default in recent browsers
-	 * due to the Spectre attack, so we can't rely on this alone; fall-back to
-	 * the transfer API if shared buffers are not available
-	 */
-	const SUPPORTS_SHARED_BUFFER = (typeof SharedArrayBuffer !== 'undefined');
-
 	function make_shared_float_array(length) {
-		if(SUPPORTS_SHARED_BUFFER) {
-			const bytes = length * Float64Array.BYTES_PER_ELEMENT;
-			const buffer = new SharedArrayBuffer(bytes);
-			return new Float64Array(buffer);
-		} else {
-			return new Float64Array(length);
-		}
-	}
-
-	function transfer_float_array(array) {
-		if(SUPPORTS_SHARED_BUFFER) {
-			return [];
-		} else {
-			return [array.buffer];
-		}
+		const bytes = length * Float64Array.BYTES_PER_ELEMENT;
+		return new Float64Array(new SharedArrayBuffer(bytes));
 	}
 
 	// Share temporary objects to reduce GC activity
-	const sharedOdds = {l: [], s: 0};
 	const sharedProbList = [];
 	const sharedMaps = (() => {
 		const maps = [];
@@ -76,107 +104,6 @@
 	function accumulate(map, key, value) {
 		const existing = map.get(key) || 0;
 		map.set(key, existing + value);
-	}
-
-	const ln_factorial = (() => {
-		// Thanks, https://www.johndcook.com/blog/2010/08/16/how-to-compute-log-factorial/
-		const stirlingConst = 0.5 * Math.log(Math.PI * 2);
-		function calc_stirling(x) {
-			const lnx = Math.log(x);
-			return 1 / (12 * x) - 0.5 * lnx + x * (lnx - 1) + stirlingConst;
-		}
-
-		const lookup = [0, 0];
-		const EXACT_COUNT = 257;
-		const CACHE_COUNT = 262144;
-		for(let i = 2; i < EXACT_COUNT; ++ i) {
-			lookup[i] = lookup[i - 1] + Math.log(i);
-		}
-		for(let i = EXACT_COUNT; i < CACHE_COUNT; ++ i) {
-			lookup[i] = calc_stirling(i + 1);
-		}
-
-		return function(n) {
-			if(n < CACHE_COUNT) {
-				return lookup[n];
-			} else {
-				return calc_stirling(n + 1);
-			}
-		};
-	})();
-
-	/* eslint-disable complexity */ // Heavily optimised hot function
-	function calculate_odds_nopad(total, targets, samples) {
-		/* eslint-enable complexity */
-		/*
-		 * Computes a table of: (T = total, x = targets, s = samples)
-		 *
-		 * ((x C n) * ((T - x) C (s - n))) / (T C s)
-		 * for n = 0...s
-		 *
-		 *         (x! * (T - x)! * s! * (T - s)!)
-		 * --------------------------------------------------
-		 * (n! * (x - n)! * (s - n)! * (T - x + n - s)! * T!)
-		 *
-		 * + ln((T - x)!)
-		 * + ln((T - s)!)
-		 * - ln(T!)
-		 * - ln(n!)
-		 * + ln(x!) - ln((x - n)!)
-		 * + ln(s!) - ln((s - n)!)
-		 * - ln((n + T - x - s)!)
-		 */
-
-		sharedOdds.l.length = 0;
-
-		// Shortcuts for simple values
-		if(samples === 0 || targets === 0) {
-			sharedOdds.l.push(1);
-			sharedOdds.s = 0;
-			return sharedOdds;
-		} else if(targets === total) {
-			sharedOdds.l.push(1);
-			sharedOdds.s = total - 1;
-			return sharedOdds;
-		} else if(samples === 1) {
-			const p = targets / total;
-			sharedOdds.l.push(1 - p);
-			sharedOdds.l.push(p);
-			sharedOdds.s = 0;
-			return sharedOdds;
-		}
-
-		const B = targets + samples - total;
-
-		let cur = (
-			ln_factorial(total - samples) - ln_factorial(Math.abs(B))
-			+ ln_factorial(total - targets) - ln_factorial(total)
-		);
-
-		if(B > 0) {
-			cur += (
-				ln_factorial(targets) - ln_factorial(targets - B)
-				+ ln_factorial(samples) - ln_factorial(samples - B)
-			);
-		}
-
-		cur = Math.exp(cur);
-
-		let n = Math.max(B, 0);
-		const limit = Math.min(samples, targets);
-
-		sharedOdds.s = n;
-
-		for(; n <= limit; ++ n) {
-			sharedOdds.l.push(cur);
-
-			// A = foo / (targets - n)! / (samples - n)! / (n - B)! / n!
-			// B = foo / (targets-n-1)! / (samples-n-1)! / (n+1-B)! / (n+1)!
-			// B/A = ((targets - n) * (samples - n)) / ((n + 1 - B) * (n + 1))
-			cur *= ((targets - n) * (samples - n)) / ((n + 1 - B) * (n + 1));
-		}
-
-		return sharedOdds;
 	}
 
 	function find_max(l) {
@@ -237,25 +164,6 @@
 			sharedMaps.put(prob[n]);
 			prob[n] = nextPN;
 		}
-	}
-
-	function calculate_final_odds(total, targets, samples) {
-		// Simplification of calculate_odds;
-		// Final stage, so we only care about the case for n = samples
-
-		// Shortcuts for simple values
-		if(samples > targets) {
-			return 0;
-		} else if(samples === 0 || targets === total) {
-			return 1;
-		} else if(samples === 1) {
-			return targets / total;
-		}
-
-		return Math.exp(
-			ln_factorial(total - samples) - ln_factorial(total)
-			+ ln_factorial(targets) - ln_factorial(targets - samples)
-		);
 	}
 
 	function apply_final_distribution(prob, audience, {value, count}) {
@@ -482,7 +390,7 @@
 				normalisation: result.totalP,
 				type: 'result',
 			},
-			transfer: transfer_float_array(result.cumulativeP),
+			transfer: [],
 		};
 	}
 
@@ -491,6 +399,7 @@
 		post.fn(result, transfer);
 	}
 
+	// function exists only for testing
 	function calculate_odds(total, targets, samples) {
 		const {l, s} = calculate_odds_nopad(total, targets, samples);
 		const odds = [];
@@ -506,6 +415,7 @@
 		return odds;
 	}
 
+	// class exists only for testing
 	class SynchronousEngine {
 		static queue_task(trigger) {
 			return new Promise((resolve) => {
@@ -521,23 +431,26 @@
 			}
 			post.fn = (msg, transfer) => self.postMessage(msg, transfer);
 			self.addEventListener('message', message_listener);
+			self.postMessage({type: 'loaded'});
 		}
 	}
 
 	install_worker();
 
-	if(typeof module === 'object') {
-		module.exports = {
-			SynchronousEngine,
-			calculate_final_odds,
-			calculate_odds,
-			calculate_probability_map,
-			extract_cumulative_probability,
-			ln_factorial,
-			message_listener,
-			mult,
-			post,
-			pow,
-		};
-	}
-})();
+	return {
+		SynchronousEngine,
+		calculate_final_odds,
+		calculate_odds,
+		calculate_probability_map,
+		extract_cumulative_probability,
+		ln_factorial,
+		message_listener,
+		mult,
+		post,
+		pow,
+	};
+});
+
+if(typeof module === 'object') {
+	module.exports = prep;
+}

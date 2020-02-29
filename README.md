@@ -31,6 +31,32 @@ npm start
 (a localhost server is required because Web Workers cannot be served
 from the filesystem in all browsers)
 
+### WebAssembly
+
+This project uses C for its core logic (compiled to WebAssembly). To change the
+C code, you will need to install emscripten:
+
+```sh
+brew install emscripten binaryen
+
+# bugfix, see https://github.com/Homebrew/homebrew-core/issues/47869
+echo "BINARYEN_ROOT = '/usr/local'" >> ~/.emscripten
+```
+
+You can also install helpers (e.g. `wasm2wat`) with:
+
+```sh
+brew install wabt
+```
+
+To rebuild the WebAssembly files, run:
+
+```sh
+npm run build
+```
+
+### Testing
+
 There is also a suite of Jasmine tests (`spec/**/*.spec.js`) and a
 linter which can be run with:
 

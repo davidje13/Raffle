@@ -1,16 +1,29 @@
 'use strict';
 
-const {
-	calculate_final_odds,
-	calculate_odds,
-	calculate_probability_map,
-	extract_cumulative_probability,
-	ln_factorial,
-	message_listener,
-	mult,
-	post,
-	pow,
-} = require('../src/raffle_worker');
+const prep = require('../src/raffle_worker');
+
+let calculate_final_odds;
+let calculate_odds;
+let calculate_probability_map;
+let extract_cumulative_probability;
+let ln_factorial;
+let message_listener;
+let mult;
+let post;
+let pow;
+
+beforeAll(async () => {
+	const v = await prep;
+	calculate_final_odds = v.calculate_final_odds;
+	calculate_odds = v.calculate_odds;
+	calculate_probability_map = v.calculate_probability_map;
+	extract_cumulative_probability = v.extract_cumulative_probability;
+	ln_factorial = v.ln_factorial;
+	message_listener = v.message_listener;
+	mult = v.mult;
+	post = v.post;
+	pow = v.pow;
+});
 
 function make_cp(data) {
 	const cumulativeP = new Float64Array(data.length * 3);
