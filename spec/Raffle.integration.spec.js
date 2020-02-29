@@ -1,19 +1,16 @@
 'use strict';
 
 const Raffle = require('../src/Raffle');
-const prep = require('../src/raffle_worker');
-
-let SynchronousEngine;
-
-beforeAll(async () => {
-	const v = await prep;
-	SynchronousEngine = v.SynchronousEngine;
-});
 
 describe('Raffle Integration', () => {
+	let worker = null;
+	beforeAll(async () => {
+		worker = await require('../src/raffle_worker');
+	});
+
 	it('calculates probabilities and returns them', async () => {
 		const raffle = new Raffle({
-			engine: SynchronousEngine,
+			engine: worker.SynchronousEngine,
 			prizes: [
 				{count: 1, value: 0},
 				{count: 1, value: 1},
@@ -28,7 +25,7 @@ describe('Raffle Integration', () => {
 
 	it('calculates distributions of repeated runs', async () => {
 		const raffle = new Raffle({
-			engine: SynchronousEngine,
+			engine: worker.SynchronousEngine,
 			prizes: [
 				{count: 1, value: 0},
 				{count: 1, value: 1},

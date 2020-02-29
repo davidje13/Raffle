@@ -1,5 +1,7 @@
 'use strict';
 
+/* eslint-disable no-underscore-dangle */ // Auto-name-mangling
+
 function loadWASM() {
 	const memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
 	const importObject = {env: {memory}};
@@ -10,8 +12,8 @@ function loadWASM() {
 		function readPositionedList(ptr) {
 			const sn = new Int32Array(memory.buffer, ptr, 2);
 			const [s, n] = sn;
-			if (s < 0) {
-				throw new Error('calculate_odds_nopad requries ' + n + ' entries');
+			if(s < 0) {
+				throw new Error(`calculate_odds_nopad requries ${n} entries`);
 			}
 			return {
 				l: new Float64Array(memory.buffer, ptr + sn.byteLength, n),
@@ -20,26 +22,29 @@ function loadWASM() {
 		}
 
 		return {
-			calculate_odds_nopad: (total, targets, samples) => {
-				return readPositionedList(instance.exports._calculate_odds_nopad(
-					total,
-					targets,
-					samples,
-				));
-			},
 			calculate_final_odds: instance.exports._calculate_final_odds,
+			calculate_odds_nopad: (
+				total,
+				targets,
+				samples
+			) => readPositionedList(instance.exports._calculate_odds_nopad(
+				total,
+				targets,
+				samples
+			)),
 			ln_factorial: instance.exports._ln_factorial,
 		};
 	}
 
-	if (typeof fetch !== 'function') {
+	if(typeof fetch !== 'function') {
 		const fs = require('fs');
+		// eslint-disable-next-line no-sync
 		const bytes = fs.readFileSync('./wasm/dist/main.wasm');
 		return WebAssembly.instantiate(bytes, importObject).then(handleLoaded);
 	}
 
 	const request = fetch('../wasm/dist/main.wasm');
-	if (WebAssembly.instantiateStreaming) {
+	if(WebAssembly.instantiateStreaming) {
 		return WebAssembly
 			.instantiateStreaming(request, importObject)
 			.then(handleLoaded);
@@ -60,9 +65,9 @@ const prep = loadWASM().then(({
 	let perf_now = () => 0;
 
 	const LEVEL = {
+		aggregate: 999,
 		debug: 1,
 		info: 2,
-		aggregate: 3,
 		none: 4,
 	};
 
@@ -70,27 +75,27 @@ const prep = loadWASM().then(({
 	const aggs = {};
 
 	function send_profiling(name, millis, level, group) {
-		if(level >= profilingLevel) {
-			post.fn({
-				message: `${(millis * 0.001).toFixed(4)}s : ${name}`,
-				type: 'info',
-			});
-		} else if(profilingLevel === LEVEL.aggregate && group) {
+		if(profilingLevel === LEVEL.aggregate && group) {
 			let o = aggs[group];
 			if(!o) {
-				o = { v: 0, n: 0 };
+				o = { n: 0, v: 0 };
 				aggs[group] = o;
 			}
 			o.v += millis;
 			if((++ o.n) >= 20) {
-				millis = o.v / o.n;
+				const avgMs = o.v / o.n;
 				post.fn({
-					message: `${(millis * 0.001).toFixed(4)}s : average ${group}`,
+					message: `${(avgMs * 0.001).toFixed(4)}s : avg. ${group}`,
 					type: 'info',
 				});
-				o.v = 0;
 				o.n = 0;
+				o.v = 0;
 			}
+		} else if(level >= profilingLevel) {
+			post.fn({
+				message: `${(millis * 0.001).toFixed(4)}s : ${name}`,
+				type: 'info',
+			});
 		}
 	}
 
@@ -417,7 +422,7 @@ const prep = loadWASM().then(({
 		post.fn(result, transfer);
 	}
 
-	// function exists only for testing
+	// Function exists only for testing
 	function calculate_odds(total, targets, samples) {
 		const {l, s} = calculate_odds_nopad(total, targets, samples);
 		const odds = [];
@@ -433,7 +438,7 @@ const prep = loadWASM().then(({
 		return odds;
 	}
 
-	// class exists only for testing
+	// Class exists only for testing
 	class SynchronousEngine {
 		static queue_task(trigger) {
 			return new Promise((resolve) => {

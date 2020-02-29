@@ -1,28 +1,10 @@
 'use strict';
 
-const prep = require('../src/raffle_worker');
-
-let calculate_final_odds;
-let calculate_odds;
-let calculate_probability_map;
-let extract_cumulative_probability;
-let ln_factorial;
-let message_listener;
-let mult;
-let post;
-let pow;
-
+let worker = null;
+// Not ideal but alternative is nastier
+/* eslint-disable jasmine/no-global-setup */
 beforeAll(async () => {
-	const v = await prep;
-	calculate_final_odds = v.calculate_final_odds;
-	calculate_odds = v.calculate_odds;
-	calculate_probability_map = v.calculate_probability_map;
-	extract_cumulative_probability = v.extract_cumulative_probability;
-	ln_factorial = v.ln_factorial;
-	message_listener = v.message_listener;
-	mult = v.mult;
-	post = v.post;
-	pow = v.pow;
+	worker = await require('../src/raffle_worker');
 });
 
 function make_cp(data) {
@@ -40,27 +22,27 @@ function make_cp(data) {
 describe('ln_factorial', () => {
 	it('calculates log(n!) for small n', () => {
 		// Simple (sum of logs) domain
-		expect(ln_factorial(0)).toBeNear(0.0, 1e-6);
-		expect(ln_factorial(1)).toBeNear(0.0, 1e-6);
-		expect(ln_factorial(2)).toBeNear(0.6931472, 1e-6);
-		expect(ln_factorial(3)).toBeNear(1.7917595, 1e-6);
-		expect(ln_factorial(4)).toBeNear(3.1780538, 1e-6);
-		expect(ln_factorial(256)).toBeNear(1167.2572786, 1e-6);
+		expect(worker.ln_factorial(0)).toBeNear(0.0, 1e-6);
+		expect(worker.ln_factorial(1)).toBeNear(0.0, 1e-6);
+		expect(worker.ln_factorial(2)).toBeNear(0.6931472, 1e-6);
+		expect(worker.ln_factorial(3)).toBeNear(1.7917595, 1e-6);
+		expect(worker.ln_factorial(4)).toBeNear(3.1780538, 1e-6);
+		expect(worker.ln_factorial(256)).toBeNear(1167.2572786, 1e-6);
 	});
 
 	it('calculates log(n!) for large n', () => {
 		// Stirling approximation domain
-		expect(ln_factorial(257)).toBeNear(1172.8063546, 1e-6);
-		expect(ln_factorial(300)).toBeNear(1414.9058499, 1e-6);
+		expect(worker.ln_factorial(257)).toBeNear(1172.8063546, 1e-6);
+		expect(worker.ln_factorial(300)).toBeNear(1414.9058499, 1e-6);
 	});
 
 	it('calculates log(n!) for very large n', () => {
-		expect(ln_factorial(1000000)).toBeNear(12815518.3846582, 1e-6);
+		expect(worker.ln_factorial(1000000)).toBeNear(12815518.3846582, 1e-6);
 	});
 
 	it('loses minimal precision', () => {
-		const a = ln_factorial(1000000001);
-		const b = ln_factorial(1000000000);
+		const a = worker.ln_factorial(1000000001);
+		const b = worker.ln_factorial(1000000000);
 
 		expect(Math.exp(a - b)).toBeNear(1000000001, 1e4);
 	});
@@ -68,7 +50,7 @@ describe('ln_factorial', () => {
 
 describe('calculate_odds', () => {
 	it('generates a table of probabilities', () => {
-		const odds = calculate_odds(9, 5, 4);
+		const odds = worker.calculate_odds(9, 5, 4);
 
 		expect(odds.length).toEqual(5);
 		/* eslint-disable space-in-parens */
@@ -81,14 +63,14 @@ describe('calculate_odds', () => {
 	});
 
 	it('gives an exact list for 0 samples', () => {
-		const odds = calculate_odds(7, 5, 0);
+		const odds = worker.calculate_odds(7, 5, 0);
 
 		expect(odds.length).toEqual(1);
 		expect(odds[0]).toEqual(1);
 	});
 
 	it('gives an exact list for 1 sample', () => {
-		const odds = calculate_odds(7, 5, 1);
+		const odds = worker.calculate_odds(7, 5, 1);
 
 		expect(odds.length).toEqual(2);
 		expect(odds[0]).toEqual(2 / 7);
@@ -96,7 +78,7 @@ describe('calculate_odds', () => {
 	});
 
 	it('fills in imposible high values with 0', () => {
-		const odds = calculate_odds(7, 2, 4);
+		const odds = worker.calculate_odds(7, 2, 4);
 
 		expect(odds.length).toEqual(5);
 		expect(odds[0]).toBeNear(1 / 7, 1e-6);
@@ -107,7 +89,7 @@ describe('calculate_odds', () => {
 	});
 
 	it('fills in imposible low values with 0', () => {
-		const odds = calculate_odds(7, 5, 4);
+		const odds = worker.calculate_odds(7, 5, 4);
 
 		expect(odds.length).toEqual(5);
 		expect(odds[0]).toBeNear(0 / 7, 1e-6);
@@ -118,7 +100,7 @@ describe('calculate_odds', () => {
 	});
 
 	it('fills in certainties due to full sampling', () => {
-		const odds = calculate_odds(3, 2, 3);
+		const odds = worker.calculate_odds(3, 2, 3);
 
 		expect(odds.length).toEqual(4);
 		expect(odds[0]).toBeNear(0, 1e-6);
@@ -128,7 +110,7 @@ describe('calculate_odds', () => {
 	});
 
 	it('fills in certainties due to no targets', () => {
-		const odds = calculate_odds(3, 0, 2);
+		const odds = worker.calculate_odds(3, 0, 2);
 
 		expect(odds.length).toEqual(3);
 		expect(odds[0]).toBeNear(1, 1e-6);
@@ -137,7 +119,7 @@ describe('calculate_odds', () => {
 	});
 
 	it('fills in certainties due to saturated targets', () => {
-		const odds = calculate_odds(3, 3, 2);
+		const odds = worker.calculate_odds(3, 3, 2);
 
 		expect(odds.length).toEqual(3);
 		expect(odds[0]).toBeNear(0, 1e-6);
@@ -148,9 +130,9 @@ describe('calculate_odds', () => {
 
 describe('calculate_final_odds', () => {
 	function call(total, targets, samples) {
-		const odds = calculate_odds(total, targets, samples);
+		const odds = worker.calculate_odds(total, targets, samples);
 		return {
-			actual: calculate_final_odds(total, targets, samples),
+			actual: worker.calculate_final_odds(total, targets, samples),
 			expected: odds[odds.length - 1],
 		};
 	}
@@ -182,7 +164,7 @@ describe('calculate_final_odds', () => {
 
 describe('calculate_probability_map', () => {
 	it('creates a map of value to probability', () => {
-		const pMap = calculate_probability_map([
+		const pMap = worker.calculate_probability_map([
 			{count: 1, value: 1},
 			{count: 7, value: 0},
 		], 1, 0);
@@ -193,7 +175,7 @@ describe('calculate_probability_map', () => {
 	});
 
 	it('combines winnings from different tickets', () => {
-		const pMap = calculate_probability_map([
+		const pMap = worker.calculate_probability_map([
 			{count: 2, value: 1},
 			{count: 6, value: 0},
 		], 2, 0);
@@ -205,7 +187,7 @@ describe('calculate_probability_map', () => {
 	});
 
 	it('combines winnings from different prizes', () => {
-		const pMap = calculate_probability_map([
+		const pMap = worker.calculate_probability_map([
 			{count: 1, value: 10},
 			{count: 3, value: 5},
 			{count: 4, value: 0},
@@ -246,7 +228,7 @@ describe('mult', () => {
 		pMap2.set(5, 0.25);
 		pMap2.set(7, 0.50);
 
-		const pMapM = mult(pMap1, pMap2, 0);
+		const pMapM = worker.mult(pMap1, pMap2, 0);
 
 		expect(pMapM.size).toEqual(6);
 		expect(pMapM.get(2)).toEqual(0.125);
@@ -266,7 +248,7 @@ describe('mult', () => {
 		pMap2.set(1, 0.5);
 		pMap2.set(3, 0.5);
 
-		const pMapM = mult(pMap1, pMap2, 0);
+		const pMapM = worker.mult(pMap1, pMap2, 0);
 
 		expect(pMapM.size).toEqual(3);
 		expect(pMapM.get(1)).toEqual(0.25);
@@ -278,12 +260,12 @@ describe('mult', () => {
 		const pMap1 = new Map();
 		pMap1.set(0, 1);
 
-		expect(mult(pMap1, null, 0)).toEqual(pMap1);
-		expect(mult(null, pMap1, 0)).toEqual(pMap1);
+		expect(worker.mult(pMap1, null, 0)).toEqual(pMap1);
+		expect(worker.mult(null, pMap1, 0)).toEqual(pMap1);
 	});
 
 	it('returns null if both parameters are null', () => {
-		expect(mult(null, null, 0)).toBeNull();
+		expect(worker.mult(null, null, 0)).toBeNull();
 	});
 });
 
@@ -293,7 +275,7 @@ describe('power', () => {
 		pMap.set(0, 0.5);
 		pMap.set(1, 0.5);
 
-		const pMapP = pow(pMap, 2, 0);
+		const pMapP = worker.pow(pMap, 2, 0);
 
 		expect(pMapP.size).toEqual(3);
 		expect(pMapP.get(0)).toEqual(0.25);
@@ -306,7 +288,7 @@ describe('power', () => {
 		pMap.set(0, 0.5);
 		pMap.set(1, 0.5);
 
-		const pMapP = pow(pMap, 12, 0);
+		const pMapP = worker.pow(pMap, 12, 0);
 
 		expect(pMapP.size).toEqual(13);
 		expect(pMapP.get(0)).toBeNear(1 / 4096, 1e-6);
@@ -329,7 +311,7 @@ describe('power', () => {
 		pMap.set(0, 0.5);
 		pMap.set(1, 0.5);
 
-		const pMapP = pow(pMap, 1, 0);
+		const pMapP = worker.pow(pMap, 1, 0);
 
 		expect(pMapP).toEqual(pMap);
 	});
@@ -339,7 +321,7 @@ describe('power', () => {
 		pMap.set(0, 0.5);
 		pMap.set(1, 0.5);
 
-		const pMapP = pow(pMap, 0, 0);
+		const pMapP = worker.pow(pMap, 0, 0);
 
 		expect(pMapP.size).toEqual(1);
 		expect(pMapP.get(0)).toEqual(1);
@@ -352,7 +334,7 @@ describe('extract_cumulative_probability', () => {
 		pMap.set(0, 0.5);
 		pMap.set(1, 0.5);
 
-		const {cumulativeP} = extract_cumulative_probability(pMap, 0);
+		const {cumulativeP} = worker.extract_cumulative_probability(pMap, 0);
 
 		expect(cumulativeP).toEqual(make_cp([
 			{cp: 0.5, p: 0.5, value: 0},
@@ -365,7 +347,7 @@ describe('extract_cumulative_probability', () => {
 		pMap.set(1, 0.5);
 		pMap.set(0, 0.5);
 
-		const {cumulativeP} = extract_cumulative_probability(pMap, 0);
+		const {cumulativeP} = worker.extract_cumulative_probability(pMap, 0);
 
 		expect(cumulativeP).toEqual(make_cp([
 			{cp: 0.5, p: 0.5, value: 0},
@@ -378,7 +360,10 @@ describe('extract_cumulative_probability', () => {
 		pMap.set(1, 1);
 		pMap.set(0, 1);
 
-		const {cumulativeP, totalP} = extract_cumulative_probability(pMap, 0);
+		const {
+			cumulativeP,
+			totalP,
+		} = worker.extract_cumulative_probability(pMap, 0);
 
 		expect(totalP).toEqual(2);
 		expect(cumulativeP).toEqual(make_cp([
@@ -390,7 +375,7 @@ describe('extract_cumulative_probability', () => {
 
 describe('message_listener', () => {
 	beforeEach(() => {
-		post.fn = jasmine.createSpy('fn');
+		worker.post.fn = jasmine.createSpy('fn');
 	});
 
 	it('simulates odds in a raffle if called with "generate"', () => {
@@ -407,9 +392,9 @@ describe('message_listener', () => {
 				type: 'generate',
 			},
 		};
-		message_listener(event);
+		worker.message_listener(event);
 
-		expect(post.fn).toHaveBeenCalledWith({
+		expect(worker.post.fn).toHaveBeenCalledWith({
 			cumulativeP: make_cp([
 				{cp: 0.875, p: 0.875, value: 0},
 				{cp: 1.000, p: 0.125, value: 1},
@@ -431,9 +416,9 @@ describe('message_listener', () => {
 				type: 'pow',
 			},
 		};
-		message_listener(event);
+		worker.message_listener(event);
 
-		expect(post.fn).toHaveBeenCalledWith({
+		expect(worker.post.fn).toHaveBeenCalledWith({
 			cumulativeP: make_cp([
 				{cp: 0.25, p: 0.25, value: 0},
 				{cp: 0.75, p: 0.50, value: 1},
@@ -469,9 +454,9 @@ describe('message_listener', () => {
 				type: 'compound',
 			},
 		};
-		message_listener(event);
+		worker.message_listener(event);
 
-		expect(post.fn).toHaveBeenCalledWith({
+		expect(worker.post.fn).toHaveBeenCalledWith({
 			cumulativeP: make_cp([
 				{cp: 0.250, p: 0.250, value: 0},
 				{cp: 0.625, p: 0.375, value: 1},

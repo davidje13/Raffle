@@ -88,12 +88,12 @@ EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
 
 	int begin = (int) fmax(B, 0.0);
 	int limit = samples;
-	if ((int) targets < samples) {
+	if((int) targets < samples) {
 		limit = (int) targets;
 	}
 	++ limit;
 
-	if (limit - begin > MAX_ODDS_BUCKETS) {
+	if(limit - begin > MAX_ODDS_BUCKETS) {
 		// error: not enough memory allocated
 		sharedOdds.s = -1;
 		sharedOdds.n = limit - begin;

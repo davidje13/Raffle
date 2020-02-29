@@ -23,13 +23,13 @@ if(typeof require !== 'function') {
 		return (event) => {
 			switch(event.data.type) {
 			case 'loaded':
-				callback(undefined);
+				callback(false);
 				break;
 			case 'info':
 				window.console.log(event.data.message);
 				break;
 			case 'result':
-				callback(event.data);
+				callback(true, event.data);
 				break;
 			}
 		};
@@ -43,12 +43,12 @@ if(typeof require !== 'function') {
 		queue_task(trigger, transfer) {
 			return new Promise((resolve) => {
 				const worker = new Worker(this.workerFilePath);
-				worker.addEventListener('message', worker_fn((data) => {
-					if (data === undefined) {
-						worker.postMessage(trigger, transfer);
-					} else {
+				worker.addEventListener('message', worker_fn((r, data) => {
+					if(r) {
 						worker.terminate();
 						resolve(data);
+					} else {
+						worker.postMessage(trigger, transfer);
 					}
 				}));
 			});
@@ -64,7 +64,7 @@ if(typeof require !== 'function') {
 			for(let i = 0; i < workers; ++ i) {
 				const thread = {
 					reject: null,
-					resolve: 1, // initial loading marker
+					resolve: 1, // Initial loading marker
 					run: ({reject, resolve, transfer, trigger}) => {
 						thread.reject = reject;
 						thread.resolve = resolve;
@@ -72,7 +72,7 @@ if(typeof require !== 'function') {
 					},
 					worker: new Worker(workerFilePath),
 				};
-				thread.worker.addEventListener('message', worker_fn((data) => {
+				thread.worker.addEventListener('message', worker_fn((r, d) => {
 					const fn = thread.resolve;
 					if(this.queue.length > 0) {
 						thread.run(this.queue.shift());
@@ -80,8 +80,8 @@ if(typeof require !== 'function') {
 						thread.reject = null;
 						thread.resolve = null;
 					}
-					if (data !== undefined) {
-						fn(data);
+					if(r) {
+						fn(d);
 					}
 				}));
 				this.threads.push(thread);
