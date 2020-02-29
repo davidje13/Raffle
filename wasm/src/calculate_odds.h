@@ -50,8 +50,6 @@ EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
 	 * - ln((n + T - x - s)!)
 	 */
 
-	sharedOdds.n = 0;
-
 	// Shortcuts for simple values
 	if(samples == 0 || targets == 0.0) {
 		sharedOdds.l[0] = 1.0;
