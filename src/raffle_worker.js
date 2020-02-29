@@ -62,17 +62,35 @@ const prep = loadWASM().then(({
 	const LEVEL = {
 		debug: 1,
 		info: 2,
-		none: 3,
+		aggregate: 3,
+		none: 4,
 	};
 
 	const profilingLevel = LEVEL.none;
+	const aggs = {};
 
-	function send_profiling(name, millis, level) {
+	function send_profiling(name, millis, level, group) {
 		if(level >= profilingLevel) {
 			post.fn({
 				message: `${(millis * 0.001).toFixed(4)}s : ${name}`,
 				type: 'info',
 			});
+		} else if(profilingLevel === LEVEL.aggregate && group) {
+			let o = aggs[group];
+			if(!o) {
+				o = { v: 0, n: 0 };
+				aggs[group] = o;
+			}
+			o.v += millis;
+			if((++ o.n) >= 20) {
+				millis = o.v / o.n;
+				post.fn({
+					message: `${(millis * 0.001).toFixed(4)}s : average ${group}`,
+					type: 'info',
+				});
+				o.v = 0;
+				o.n = 0;
+			}
 		}
 	}
 
@@ -382,7 +400,7 @@ const prep = loadWASM().then(({
 		}
 
 		const tE = perf_now();
-		send_profiling(`Total for ${label}`, tE - tB, LEVEL.info);
+		send_profiling(`Total for ${label}`, tE - tB, LEVEL.info, data.type);
 
 		return {
 			result: {
