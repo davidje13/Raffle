@@ -12,6 +12,7 @@ module.exports = {
 		'plugin:jasmine/recommended',
 	],
 	'globals': {'SharedArrayBuffer': false},
+	'parserOptions': {'ecmaVersion': 8},
 	'plugins': ['jasmine'],
 	'rules': {
 		'accessor-pairs': ['error'],
@@ -26,7 +27,16 @@ module.exports = {
 		'brace-style': ['error'],
 		'capitalized-comments': ['error'],
 		'class-methods-use-this': ['error'],
-		'comma-dangle': ['error', 'always-multiline'],
+		'comma-dangle': [
+			'error',
+			{
+				'arrays': 'always-multiline',
+				'exports': 'always-multiline',
+				'functions': 'never',
+				'imports': 'always-multiline',
+				'objects': 'always-multiline',
+			},
+		],
 		'comma-spacing': ['error'],
 		'comma-style': ['error'],
 		'complexity': ['error', 6],
@@ -219,7 +229,13 @@ module.exports = {
 		'sort-imports': ['error'],
 		'sort-keys': ['error'],
 		'space-before-blocks': ['error'],
-		'space-before-function-paren': ['error', 'never'],
+		'space-before-function-paren': [
+			'error',
+			{
+				'anonymous': 'never',
+				'named': 'never',
+			},
+		],
 		'space-in-parens': ['error'],
 		'space-infix-ops': ['error'],
 		'space-unary-ops': ['error', {'overrides': {'++': true, '--': true}}],

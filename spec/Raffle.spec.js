@@ -115,23 +115,21 @@ describe('Raffle', () => {
 	});
 
 	describe('enter', () => {
-		it('asynchronously creates a result with the ticket count', (done) => {
+		it('gives a result with the ticket count asynchronously', async () => {
 			const raffle = new Raffle({audience: 7, engine});
-			raffle.enter(2).then((result) => {
-				expect(result.tickets()).toEqual(2);
-				done();
-			});
+			const result = await raffle.enter(2);
+
+			expect(result.tickets()).toEqual(2);
 		});
 
-		it('stores calculated probabilities in the result', (done) => {
+		it('stores calculated probabilities in the result', async () => {
 			const raffle = new Raffle({audience: 7, engine});
-			raffle.enter(2).then((result) => {
-				expect(result.cumulativeP).toEqual(make_cp([
-					{cp: 0.5, p: 0.5, value: 0},
-					{cp: 1.0, p: 0.5, value: 1},
-				]));
-				done();
-			});
+			const result = await raffle.enter(2);
+
+			expect(result.cumulativeP).toEqual(make_cp([
+				{cp: 0.5, p: 0.5, value: 0},
+				{cp: 1.0, p: 0.5, value: 1},
+			]));
 		});
 	});
 });
@@ -139,7 +137,7 @@ describe('Raffle', () => {
 describe('Raffle Result', () => {
 	let result = null;
 
-	beforeEach((done) => {
+	beforeEach(async () => {
 		const engine = new SpyEngine({
 			cumulativeP: make_cp([
 				{cp: 0.2, p: 0.2, value: 0},
@@ -149,10 +147,7 @@ describe('Raffle Result', () => {
 		});
 
 		const raffle = new Raffle({audience: 7, engine});
-		raffle.enter(2).then((res) => {
-			result = res;
-			done();
-		});
+		result = await raffle.enter(2);
 	});
 
 	describe('min', () => {

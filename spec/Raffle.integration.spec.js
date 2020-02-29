@@ -4,7 +4,7 @@ const {SynchronousEngine} = require('../src/raffle_worker');
 const Raffle = require('../src/Raffle');
 
 describe('Raffle Integration', () => {
-	it('calculates probabilities and returns them', (done) => {
+	it('calculates probabilities and returns them', async () => {
 		const raffle = new Raffle({
 			engine: SynchronousEngine,
 			prizes: [
@@ -13,15 +13,13 @@ describe('Raffle Integration', () => {
 			],
 		});
 
-		raffle.enter(1)
-			.then((result) => {
-				expect(result.range_probability(0.5, 1.5))
-					.toBeNear(0.5, 1e-6);
-				done();
-			});
+		const result = await raffle.enter(1);
+
+		expect(result.range_probability(0.5, 1.5))
+			.toBeNear(0.5, 1e-6);
 	});
 
-	it('calculates distributions of repeated runs', (done) => {
+	it('calculates distributions of repeated runs', async () => {
 		const raffle = new Raffle({
 			engine: SynchronousEngine,
 			prizes: [
@@ -30,12 +28,10 @@ describe('Raffle Integration', () => {
 			],
 		});
 
-		raffle.enter(1)
-			.then((result) => result.pow(2))
-			.then((result) => {
-				expect(result.range_probability(1.5, 2.5))
-					.toBeNear(0.25, 1e-6);
-				done();
-			});
+		const oneRun = await raffle.enter(1);
+		const twoRuns = await oneRun.pow(2);
+
+		expect(twoRuns.range_probability(1.5, 2.5))
+			.toBeNear(0.25, 1e-6);
 	});
 });
