@@ -1,7 +1,8 @@
-#ifndef CALCULATE_ODDS_NOPAD_H_
-#define CALCULATE_ODDS_NOPAD_H_
+#ifndef CALCULATE_ODDS_H_
+#define CALCULATE_ODDS_H_
 
 #include "ln_factorial.h"
+#include <stdlib.h>
 #include <math.h>
 
 #define MAX_ODDS_BUCKETS 500000
@@ -14,21 +15,9 @@ struct PositionedList {
 
 struct PositionedList sharedOdds;
 
-//int find_max(const struct PositionedList* l) {
-//	double max = 0.0;
-//	int ind = 0;
-//	for(int i = 0; i < l.n; ++ i) {
-//		if(l[i] > max) {
-//			max = l[i];
-//			ind = i;
-//		}
-//	}
-//	return ind;
-//}
-
-EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
-	double total, // should be long long
-	double targets, // should be long long
+const struct PositionedList* calculate_odds_nopad(
+	long long total,
+	long long targets,
 	int samples
 ) {
 	/*
@@ -51,7 +40,7 @@ EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
 	 */
 
 	// Shortcuts for simple values
-	if(samples == 0 || targets == 0.0) {
+	if(samples == 0 || targets == 0) {
 		sharedOdds.l[0] = 1.0;
 		sharedOdds.s = 0;
 		sharedOdds.n = 1;
@@ -62,7 +51,7 @@ EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
 		sharedOdds.n = 1;
 		return &sharedOdds;
 	} else if(samples == 1) {
-		double p = targets / total;
+		double p = targets / (double) total;
 		sharedOdds.l[0] = 1.0 - p;
 		sharedOdds.l[1] = p;
 		sharedOdds.s = 0;
@@ -70,26 +59,29 @@ EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
 		return &sharedOdds;
 	}
 
-	double B = targets + samples - total; // should be long long
+	long long B = targets + samples - total;
 
 	double cur = (
-		ln_factorial(total - samples) - ln_factorial(fabs(B))
+		ln_factorial(total - samples) - ln_factorial(llabs(B))
 		+ ln_factorial(total - targets) - ln_factorial(total)
 	);
 
+	int begin = 0;
 	if(B > 0) {
 		cur += (
 			ln_factorial(targets) - ln_factorial(targets - B)
-			+ ln_factorial((double) samples) - ln_factorial(samples - B)
+			+ ln_factorial(samples) - ln_factorial(samples - B)
 		);
+		begin = B;
 	}
 
 	cur = exp(cur);
 
-	int begin = (int) fmax(B, 0.0);
-	int limit = samples;
-	if((int) targets < samples) {
+	int limit;
+	if(targets < samples) {
 		limit = (int) targets;
+	} else {
+		limit = samples;
 	}
 	++ limit;
 
@@ -106,7 +98,7 @@ EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
 		// A = foo / (targets - n)! / (samples - n)! / (n - B)! / n!
 		// B = foo / (targets-n-1)! / (samples-n-1)! / (n+1-B)! / (n+1)!
 		// B/A = ((targets - n) * (samples - n)) / ((n + 1 - B) * (n + 1))
-		cur *= ((targets - n) * (samples - n)) / ((n + 1 - B) * (n + 1));
+		cur *= ((targets - n) * (samples - n)) / (double) ((n + 1 - B) * (n + 1));
 	}
 	sharedOdds.s = begin;
 	sharedOdds.n = limit - begin;
@@ -114,9 +106,9 @@ EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad(
 	return &sharedOdds;
 }
 
-EMSCRIPTEN_KEEPALIVE double calculate_final_odds(
-	double total, // should be long long
-	double targets, // should be long long
+double calculate_final_odds(
+	long long total,
+	long long targets,
 	int samples
 ) {
 	// Simplification of calculate_odds;
@@ -128,13 +120,30 @@ EMSCRIPTEN_KEEPALIVE double calculate_final_odds(
 	} else if(samples == 0 || targets == total) {
 		return 1.0;
 	} else if(samples == 1) {
-		return targets / total;
+		return targets / (double) total;
 	}
 
 	return exp(
 		ln_factorial(total - samples) - ln_factorial(total)
 		+ ln_factorial(targets) - ln_factorial(targets - samples)
 	);
+}
+
+// Exports for testing
+EMSCRIPTEN_KEEPALIVE const struct PositionedList* calculate_odds_nopad_(
+	double total,
+	double targets,
+	int samples
+) {
+	return calculate_odds_nopad(total, targets, samples);
+}
+
+EMSCRIPTEN_KEEPALIVE double calculate_final_odds_(
+	double total,
+	double targets,
+	int samples
+) {
+	return calculate_final_odds(total, targets, samples);
 }
 
 #endif

@@ -25,8 +25,16 @@ void ln_factorial_prep() {
 	}
 }
 
-// should be `long long n` input, but that needs special wrapping on JS side
-EMSCRIPTEN_KEEPALIVE double ln_factorial(double n) {
+double ln_factorial(long long n) {
+	if(n < CACHE_COUNT) {
+		return lookup[n];
+	} else {
+		return calc_stirling(n + 1);
+	}
+}
+
+// Exports for testing
+EMSCRIPTEN_KEEPALIVE double ln_factorial_(double n) {
 	if(n < CACHE_COUNT) {
 		return lookup[(int) n];
 	} else {

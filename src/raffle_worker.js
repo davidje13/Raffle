@@ -22,17 +22,17 @@ function loadWASM() {
 		}
 
 		return {
-			calculate_final_odds: instance.exports._calculate_final_odds,
+			calculate_final_odds: instance.exports._calculate_final_odds_,
 			calculate_odds_nopad: (
 				total,
 				targets,
 				samples
-			) => readPositionedList(instance.exports._calculate_odds_nopad(
+			) => readPositionedList(instance.exports._calculate_odds_nopad_(
 				total,
 				targets,
 				samples
 			)),
-			ln_factorial: instance.exports._ln_factorial,
+			ln_factorial: instance.exports._ln_factorial_,
 		};
 	}
 
