@@ -7,10 +7,19 @@
 #define CACHE_COUNT 262144
 
 // Thanks, https://www.johndcook.com/blog/2010/08/16/how-to-compute-log-factorial/
-double calc_stirling(double x) {
-	const double stirlingConst = 0.9189385332046727; // 0.5 * log(M_PI * 2.0);
+// https://en.wikipedia.org/wiki/Stirling%27s_approximation#Speed_of_convergence_and_error_estimates
+double calc_stirling_factorial(double x) {
 	const double lnx = log(x);
-	return 1.0 / (12.0 * x) - 0.5 * lnx + x * (lnx - 1.0) + stirlingConst;
+	return (
+		0.9189385332046727 // 0.5 * log(M_PI * 2.0)
+		+ 0.5 * lnx
+		+ x * lnx
+		- x
+		+ (1.0 / 12.0) / x
+		- (1.0 / 360.0) / (x * x * x)
+//		+ (1.0 / 1260.0) / (x * x * x * x * x)
+//		- (1.0 / 1680.0) / (x * x * x * x * x * x * x)
+	);
 }
 
 double lookup[CACHE_COUNT] = {0.0, 0.0};
@@ -21,7 +30,7 @@ void ln_factorial_prep() {
 		lookup[i] = v;
 	}
 	for(int i = EXACT_COUNT; i < CACHE_COUNT; ++ i) {
-		lookup[i] = calc_stirling((double) (i + 1));
+		lookup[i] = calc_stirling_factorial((double) i);
 	}
 }
 
@@ -29,7 +38,7 @@ double ln_factorial(long long n) {
 	if(n < CACHE_COUNT) {
 		return lookup[n];
 	} else {
-		return calc_stirling(n + 1);
+		return calc_stirling_factorial((double) n);
 	}
 }
 
@@ -38,7 +47,7 @@ EMSCRIPTEN_KEEPALIVE double ln_factorial_(double n) {
 	if(n < CACHE_COUNT) {
 		return lookup[(int) n];
 	} else {
-		return calc_stirling(n + 1.0);
+		return calc_stirling_factorial(n);
 	}
 }
 
