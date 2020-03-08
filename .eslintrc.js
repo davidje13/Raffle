@@ -70,6 +70,7 @@ module.exports = {
 		'jasmine/no-describe-variables': ['error'],
 		'jasmine/no-disabled-tests': ['error'],
 		'jasmine/no-expect-in-setup-teardown': ['error'],
+		'jasmine/no-global-setup': ['off'], // Alternative is nastier
 		'jasmine/no-spec-dupes': ['error', 'branch'],
 		'jasmine/no-suite-dupes': ['error', 'branch'],
 		'jasmine/no-unsafe-spy': ['error'],
