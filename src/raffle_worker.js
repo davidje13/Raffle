@@ -27,19 +27,29 @@ function loadWASM() {
 				1
 			);
 			const bytes = length * 3 * Float64Array.BYTES_PER_ELEMENT;
-			const dataOut = new Float64Array(new SharedArrayBuffer(bytes));
-			const dataIn = new Float64Array(
+			const cumulativeP = new Float64Array(new SharedArrayBuffer(bytes));
+			const data = new Float64Array(
 				memory.buffer,
 				ptr + Float64Array.BYTES_PER_ELEMENT * 2,
 				length * 3
 			);
 			for(let i = 0; i < length * 3; ++ i) {
-				dataOut[i] = dataIn[i];
+				cumulativeP[i] = data[i];
 			}
 			return {
-				cumulativeP: dataOut,
+				cumulativeP,
 				totalP,
 			};
+		}
+
+		function writeCumulativeMap(cumulativeP) {
+			const length = Math.floor(cumulativeP.length / 3);
+			instance.exports._reset_cprobability_map(length);
+			const ptr = instance.exports._get_cprobability_data_origin();
+			const data = new Float64Array(memory.buffer, ptr, length * 3);
+			for(let i = 0; i < length * 3; ++ i) {
+				data[i] = cumulativeP[i];
+			}
 		}
 
 		return {
@@ -54,6 +64,18 @@ function loadWASM() {
 				}
 				const ptr = instance.exports._calculate_cprobability_map(
 					tickets,
+					pCutoff
+				);
+				return readCumulativeMap(ptr);
+			},
+			pow_cprobability_map: (
+				cumulativeP,
+				power,
+				pCutoff
+			) => {
+				writeCumulativeMap(cumulativeP);
+				const ptr = instance.exports._pow_cprobability(
+					power,
 					pCutoff
 				);
 				return readCumulativeMap(ptr);
@@ -81,7 +103,10 @@ function loadWASM() {
 	}
 }
 
-const prep = loadWASM().then(({calculate_cprobability_map}) => {
+const prep = loadWASM().then(({
+	calculate_cprobability_map,
+	pow_cprobability_map,
+}) => {
 	const post = {fn: () => null};
 	let perf_now = () => 0;
 
@@ -149,17 +174,6 @@ const prep = loadWASM().then(({calculate_cprobability_map}) => {
 		map.set(key, existing + value);
 	}
 
-	function make_pmap(cumulativeP) {
-		const P = 1;
-		const VALUE = 2;
-
-		const pMap = sharedMaps.get();
-		for(let i = 0; i < cumulativeP.length; i += 3) {
-			pMap.set(cumulativeP[i + VALUE], cumulativeP[i + P]);
-		}
-		return pMap;
-	}
-
 	const VALUE_SORT = ([v1], [v2]) => (v1 - v2);
 
 	function extract_cumulative_probability(pMap, pCutoff) {
@@ -190,51 +204,6 @@ const prep = loadWASM().then(({calculate_cprobability_map}) => {
 		return {cumulativeP, totalP};
 	}
 
-	function mult(a, b, pCutoff) {
-		if(!a) {
-			return b;
-		}
-		if(!b) {
-			return a;
-		}
-
-		const m = sharedMaps.get();
-		for(const [av, ap] of a.entries()) {
-			for(const [bv, bp] of b.entries()) {
-				const p = ap * bp;
-				if(p > pCutoff) {
-					accumulate(m, av + bv, p);
-				}
-			}
-		}
-		return m;
-	}
-
-	function pow(pMap, power, pCutoff) {
-		if(power === 0) {
-			const p1Map = sharedMaps.get();
-			p1Map.set(0, 1);
-			return p1Map;
-		}
-
-		let fullPMap = null;
-		let lastPMap = pMap;
-
-		for(let p = power; ; lastPMap = mult(lastPMap, lastPMap, pCutoff)) {
-			/* eslint-disable no-bitwise */
-			if(p & 1) {
-				fullPMap = mult(fullPMap, lastPMap, pCutoff);
-			}
-			p >>>= 1;
-			/* eslint-enable no-bitwise */
-			if(!p) {
-				break;
-			}
-		}
-
-		return fullPMap;
-	}
-
 	function compound(parts, pCutoff) {
 		const P = 1;
 		const VALUE = 2;
@@ -258,14 +227,7 @@ const prep = loadWASM().then(({calculate_cprobability_map}) => {
 	}
 
 	function message_handler_pow({cumulativeP, power, pCutoff}) {
-		const pMap1 = make_pmap(cumulativeP);
-		const pMapN = pow(pMap1, power, pCutoff);
-		if(pMap1 !== pMapN) {
-			sharedMaps.put(pMap1);
-		}
-		const result = extract_cumulative_probability(pMapN, pCutoff);
-		sharedMaps.put(pMapN);
-		return result;
+		return pow_cprobability_map(cumulativeP, power, pCutoff);
 	}
 
 	function message_handler_compound({parts, pCutoff}) {
@@ -338,9 +300,7 @@ const prep = loadWASM().then(({calculate_cprobability_map}) => {
 		SynchronousEngine,
 		extract_cumulative_probability,
 		message_listener,
-		mult,
 		post,
-		pow,
 	};
 });
 

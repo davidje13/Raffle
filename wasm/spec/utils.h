@@ -39,14 +39,21 @@ static jmp_buf buf;
 
 #define fail(format, ...) _fail(__FILE__, __LINE__, format, ##__VA_ARGS__)
 
-void _assertEqual(const char *file, int line, int a, int b) {
+void _assertEqual(const char* file, int line, int a, int b) {
 	if (a != b) {
 		_fail(file, line, "Expected %d to equal %d", a, b);
 	}
 }
 #define assertEqual(a, b) _assertEqual(__FILE__, __LINE__, a, b)
 
-void _assertNear(const char *file, int line, double a, double b, double tolerance) {
+void _assertSame(const char* file, int line, const void* a, const void* b) {
+	if (a != b) {
+		_fail(file, line, "Expected %p to match pointer %p", a, b);
+	}
+}
+#define assertSame(a, b) _assertSame(__FILE__, __LINE__, a, b)
+
+void _assertNear(const char* file, int line, double a, double b, double tolerance) {
 	if (a < b - tolerance || a > b + tolerance) {
 		_fail(file, line, "Expected %f to equal %f (+/- %f)", a, b, tolerance);
 	}

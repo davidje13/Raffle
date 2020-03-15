@@ -53,4 +53,25 @@ const struct CumulativeProbMap* extract_cumulative_probability(
 	return &sharedCPMap;
 }
 
+struct ProbMap* extract_probability_map(
+	const struct CumulativeProbMap* cpMap
+) {
+	struct ProbMap* pMap = mallocProbMap();
+	// loop in reverse for efficient filling of ProbMap structure
+	for (unsigned int i = cpMap->dataLength; (i --) > 0; ) {
+		const struct CumulativeProbMapElement* entry = &cpMap->data[i];
+		accumulateProbMap(pMap, (unsigned int) entry->value, entry->p);
+	}
+	return pMap;
+}
+
+EMSCRIPTEN_KEEPALIVE void reset_cprobability_map(unsigned int count) {
+	sharedCPMap.totalP = 0.0;
+	sharedCPMap.dataLength = count;
+}
+
+EMSCRIPTEN_KEEPALIVE void* get_cprobability_data_origin() {
+	return &sharedCPMap.data;
+}
+
 #endif
