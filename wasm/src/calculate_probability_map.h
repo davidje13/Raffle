@@ -9,10 +9,6 @@
 #include "options.h"
 #include <math.h>
 
-DEFINE_MEMORY(ProbMap, struct ProbMap, MAX_TICKETS + 2, {
-	clearProbMap(v);
-})
-
 static struct ProbMap* sharedTicketsProb[MAX_TICKETS + 1];
 
 unsigned int find_peak(const struct PositionedList* l) {
@@ -50,7 +46,7 @@ void apply_distribution(
 		struct ProbMap* prevPN = prob[n];
 		prob[n] = mallocProbMap();
 
-		iterateProbMap(prevPN, iter,
+		iterateProbMap(prevPN, iter, {
 			if (iter->value <= pCutoff) {
 				continue;
 			}
@@ -70,7 +66,7 @@ void apply_distribution(
 				unsigned int d = i + l->start;
 				accumulateProbMap(prob[n + d], iter->key + d * prize->value, pp);
 			}
-		)
+		})
 
 		freeProbMap(prevPN);
 	}

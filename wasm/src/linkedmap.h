@@ -68,11 +68,11 @@ ValueT get##BaseName( \
 
 #define iterateLinkedMap(BaseName, mapPtr, entryVar, expr) { \
 	for ( \
-		const struct BaseName##Entry* entryI = (mapPtr)->firstEntry; \
-		entryI; \
-		entryI = entryI->next \
+		const struct BaseName##Entry* entryVar##Mut = (mapPtr)->firstEntry; \
+		entryVar##Mut; \
+		entryVar##Mut = entryVar##Mut->next \
 	) { \
-		const struct BaseName##Entry* entryVar = entryI; \
+		const struct BaseName##Entry* entryVar = entryVar##Mut; \
 		expr \
 	} \
 }
