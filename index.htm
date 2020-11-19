@@ -111,7 +111,7 @@ window.addEventListener('load', () => {
 		]), {pCutoff: 1e-10})
 	);
 
-	raffleSelectUI.select(raffleSelectUI.add(
+	raffleSelectUI.add(
 		'NS&I Premium Bonds Snapshot (March 2018)',
 		Raffle.from(new NSI([
 			{value: 1000000, count:       2},
@@ -126,6 +126,40 @@ window.addEventListener('load', () => {
 			{value:      50, count:   23554},
 			{value:      25, count: 2950583},
 		], {audienceMultiplier: 24500}), {pCutoff: 1e-10})
+	);
+
+	raffleSelectUI.add(
+		'NS&I Premium Bonds Snapshot (September 2020)',
+		Raffle.from(new NSI([
+			{value: 1000000, count:       2},
+			{value:  100000, count:       7},
+			{value:   50000, count:      14},
+			{value:   25000, count:      28},
+			{value:   10000, count:      71},
+			{value:    5000, count:     140},
+			{value:    1000, count:    2204},
+			{value:     500, count:    6612},
+			{value:     100, count:   30244},
+			{value:      50, count:   30244},
+			{value:      25, count: 3786474},
+		], {audienceMultiplier: 24500}), {pCutoff: 1e-10})
+	);
+
+	raffleSelectUI.select(raffleSelectUI.add(
+		'NS&I Premium Bonds Snapshot (December 2020)',
+		Raffle.from(new NSI([
+			{value: 1000000, count:       2},
+			{value:  100000, count:       4},
+			{value:   50000, count:       9},
+			{value:   25000, count:      16},
+			{value:   10000, count:      43},
+			{value:    5000, count:      83},
+			{value:    1000, count:    1639},
+			{value:     500, count:    4917},
+			{value:     100, count:   26637},
+			{value:      50, count:   26637},
+			{value:      25, count: 2790269},
+		], {audienceMultiplier: 34500}), {pCutoff: 1e-10})
 	));
 
 	document.body.appendChild(raffleSelectUI.dom());
