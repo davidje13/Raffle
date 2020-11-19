@@ -4,9 +4,9 @@
 	// Thanks, https://github.com/Rob--W/cors-anywhere/
 	const cors_proxy_url = 'https://cors-anywhere.herokuapp.com/';
 
-	const nsi_prize_url = 'https://www.nsandi.com/prize-checker';
+	const nsi_prize_url = 'https://www.nsandi.com/get-to-know-us/monthly-prize-allocation';
 	const nsi_prize_selector = (
-		'//h2[contains(text(),"Prize draw")]/..//table/tbody/tr'
+		'//h3[contains(text(),"Prize draw details")]/..//table/tbody/tr'
 	);
 
 	function parseDOM(code) {
@@ -54,7 +54,10 @@
 					prizesLast.push({count: qtyLast, value});
 					prizesNext.push({count: qtyNext, value});
 				}
-				return {prizesLast, prizesNext};
+				return {
+					prizesLast: prizesLast.length > 0 ? prizesLast : null,
+					prizesNext: prizesNext.length > 0 ? prizesNext : null,
+				};
 			});
 	}
 
@@ -84,8 +87,8 @@
 	}
 
 	NSI.load = () => load_prizes().then(({prizesLast, prizesNext}) => ({
-		last: new NSI(prizesLast, {audienceMultiplier: 24500}),
-		next: new NSI(prizesNext, {audienceMultiplier: 24500}),
+		last: prizesLast && new NSI(prizesLast, {audienceMultiplier: 34500}),
+		next: prizesNext && new NSI(prizesNext, {audienceMultiplier: 34500}),
 	}));
 
 	if(typeof module === 'object') {
