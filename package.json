@@ -20,13 +20,13 @@
     "build": "mkdir -p wasm/dist && emcc -O3 wasm/src/main.c -o wasm/dist/main.wasm -s TOTAL_MEMORY=16MB -Wall -Wextra --pedantic -Wshorten-64-to-32 -Wfloat-conversion -Wpadded -Wshadow -Wmissing-variable-declarations",
     "check": "npm run build && npm run lint && npm run test",
     "lint": "eslint . --ext .js --ignore-pattern '!.eslintrc.js'",
-    "start": "http-server",
+    "start": "static-server --index index.htm --port 8080",
     "test": "gcc -O3 wasm/spec/main.c -o wasm/spec/runner && ./wasm/spec/runner && jasmine"
   },
   "devDependencies": {
-    "eslint": "6.x",
+    "eslint": "7.x",
     "eslint-plugin-jasmine": "4.x",
-    "http-server": "0.x",
-    "jasmine": "3.x"
+    "jasmine": "3.x",
+    "static-server": "^2.2.1"
   }
 }
