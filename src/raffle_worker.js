@@ -2,21 +2,29 @@
 
 /* eslint-disable no-underscore-dangle */ // Auto-name-mangling
 
+const SHARED_BUFFER_AVAILABLE = (typeof SharedArrayBuffer !== 'undefined');
+
+function make_shared_float_array(length) {
+	const bytes = length * Float64Array.BYTES_PER_ELEMENT;
+	return new Float64Array(SHARED_BUFFER_AVAILABLE ? new SharedArrayBuffer(bytes) : length);
+}
+
 function loadWASM() {
 	const memory = new WebAssembly.Memory({ initial: 256, maximum: 256 });
 	const importObject = {
-		env: {
+		imports: {
 			_abort: () => {
 				throw new Error();
 			},
 			_console_log: (n) => {
 				console.log(n);
 			},
-			memory,
 		},
+		js: { mem: memory },
 	};
 
 	function handleLoaded({instance}) {
+		console.log('wasm loaded');
 		instance.exports._prep();
 
 		function readCumulativeMap(ptr) {
@@ -26,8 +34,7 @@ function loadWASM() {
 				ptr + Float64Array.BYTES_PER_ELEMENT,
 				1
 			);
-			const bytes = length * 3 * Float64Array.BYTES_PER_ELEMENT;
-			const dataOut = new Float64Array(new SharedArrayBuffer(bytes));
+			const dataOut = make_shared_float_array(length * 3);
 			const dataIn = new Float64Array(
 				memory.buffer,
 				ptr + Float64Array.BYTES_PER_ELEMENT * 2,
@@ -61,24 +68,17 @@ function loadWASM() {
 		};
 	}
 
+	let loader;
 	if(typeof fetch !== 'function') {
 		const fs = require('fs');
 		// eslint-disable-next-line no-sync
 		const bytes = fs.readFileSync('./wasm/dist/main.wasm');
-		return WebAssembly.instantiate(bytes, importObject).then(handleLoaded);
+		loader = WebAssembly.instantiate(bytes, importObject);
+	} else {
+		loader = WebAssembly.instantiateStreaming(fetch('../wasm/dist/main.wasm'), importObject);
 	}
 
-	const request = fetch('../wasm/dist/main.wasm');
-	if(WebAssembly.instantiateStreaming) {
-		return WebAssembly
-			.instantiateStreaming(request, importObject)
-			.then(handleLoaded);
-	} else {
-		return request
-			.then((res) => res.arrayBuffer())
-			.then((bytes) => WebAssembly.instantiate(bytes, importObject))
-			.then(handleLoaded);
-	}
+	return loader.then(handleLoaded);
 }
 
 const prep = loadWASM().then(({calculate_cprobability_map}) => {
@@ -118,11 +118,6 @@ const prep = loadWASM().then(({calculate_cprobability_map}) => {
 				type: 'info',
 			});
 		}
-	}
-
-	function make_shared_float_array(length) {
-		const bytes = length * Float64Array.BYTES_PER_ELEMENT;
-		return new Float64Array(new SharedArrayBuffer(bytes));
 	}
 
 	// Share temporary objects to reduce GC activity
@@ -303,7 +298,7 @@ const prep = loadWASM().then(({calculate_cprobability_map}) => {
 				normalisation: result.totalP,
 				type: 'result',
 			},
-			transfer: [],
+			transfer: SHARED_BUFFER_AVAILABLE ? [] : [result.cumulativeP],
 		};
 	}
 

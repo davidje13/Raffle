@@ -38,9 +38,6 @@ C code, you will need to install emscripten:
 
 ```sh
 brew install emscripten binaryen
-
-# bugfix, see https://github.com/Homebrew/homebrew-core/issues/47869
-echo "BINARYEN_ROOT = '/usr/local'" >> ~/.emscripten
 ```
 
 You can also install helpers (e.g. `wasm2wat`) with:
@@ -61,7 +58,7 @@ There is also a suite of Jasmine tests (`spec/**/*.spec.js`) and a
 linter which can be run with:
 
 ```sh
-npm run test            # run Jasmine tests
+npm run test            # run Jasmine & C tests
 npm run lint            # run linter
 npm run check           # run linter and tests
 ```
