@@ -38,7 +38,6 @@ function loadWASM() {
 					throw new Error();
 				},
 			},
-			js: { mem: new WebAssembly.Memory({ initial: 256, maximum: 256 }) },
 		}))
 		.then((instance) => {
 			instance.exports.prep();
