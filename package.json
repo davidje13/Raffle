@@ -24,7 +24,7 @@
     "test": "gcc -O3 wasm/spec/main.c -o wasm/spec/runner && ./wasm/spec/runner && jasmine"
   },
   "devDependencies": {
-    "eslint": "7.x",
+    "eslint": "8.x",
     "eslint-plugin-jasmine": "4.x",
     "jasmine": "3.x",
     "static-server": "^2.2.1"

@@ -6,21 +6,27 @@ const SHARED_BUFFER_AVAILABLE = (typeof SharedArrayBuffer !== 'undefined');
 
 function make_shared_float_array(length) {
 	const bytes = length * Float64Array.BYTES_PER_ELEMENT;
-	return new Float64Array(SHARED_BUFFER_AVAILABLE ? new SharedArrayBuffer(bytes) : length);
+	return new Float64Array(
+		SHARED_BUFFER_AVAILABLE ? new SharedArrayBuffer(bytes) : length
+	);
+}
+
+function transfer_buffer(buf) {
+	return SHARED_BUFFER_AVAILABLE ? [] : [buf];
 }
 
 function nodejsReadFile(path) {
 	const fs = require('fs');
 	return new Promise((resolve, reject) => {
-		fs.readFile(path, (err, data) => err ? reject(err) : resolve(data));
+		fs.readFile(path, (err, data) => (err ? reject(err) : resolve(data)));
 	});
 }
 
 function compileWASM(source) {
 	if(typeof fetch === 'function') {
-		return WebAssembly.compileStreaming(fetch('../' + source));
+		return WebAssembly.compileStreaming(fetch(`../${source}`));
 	}
-	return nodejsReadFile('./' + source).then((data) => WebAssembly.compile(data));
+	return nodejsReadFile(`./${source}`).then((d) => WebAssembly.compile(d));
 }
 
 function loadWASM() {
@@ -38,7 +44,7 @@ function loadWASM() {
 			instance.exports.prep();
 
 			function readCumulativeMap(ptr) {
-				const memory = instance.exports.memory;
+				const { memory } = instance.exports;
 				const [totalP] = new Float64Array(memory.buffer, ptr, 1);
 				const [length] = new Int32Array(
 					memory.buffer,
@@ -297,7 +303,7 @@ const prep = loadWASM().then(({calculate_cprobability_map}) => {
 				normalisation: result.totalP,
 				type: 'result',
 			},
-			transfer: SHARED_BUFFER_AVAILABLE ? [] : [result.cumulativeP.buffer],
+			transfer: transfer_buffer(result.cumulativeP.buffer),
 		};
 	}
 

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <setjmp.h>
+#include "../src/imports.h"
 
 #define EMSCRIPTEN_KEEPALIVE
 
@@ -61,6 +62,16 @@ int conclude_tests() {
 	}
 	printf("PASS\n\n");
 	return 0;
+}
+
+void throw_error(void) {
+	fprintf(
+		stderr,
+		"%s %s FAILED\n> throw_error called\n\n",
+		globalCurrentBlock,
+		globalCurrentTest
+	);
+	longjmp(buf, 1);
 }
 
 #endif
