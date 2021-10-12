@@ -2,6 +2,7 @@
 #define PRIZES_H_
 
 #include "options.h"
+#include "imports.h"
 
 struct Prize {
 	long long count;
@@ -17,7 +18,7 @@ EMSCRIPTEN_KEEPALIVE void reset_prizes() {
 
 EMSCRIPTEN_KEEPALIVE void add_prize(double count, unsigned int value) {
 	if (sharedPrizesLength >= MAX_PRIZES) {
-		abort();
+		throw_error();
 	}
 	sharedPrizes[sharedPrizesLength].count = (unsigned long long) count;
 	sharedPrizes[sharedPrizesLength].value = value;

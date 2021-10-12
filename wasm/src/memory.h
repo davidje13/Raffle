@@ -1,6 +1,8 @@
 #ifndef MEMORY_H_
 #define MEMORY_H_
 
+#include "imports.h"
+
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
 #define MEM_MASK_T unsigned long long
@@ -27,7 +29,7 @@ ValueT* malloc##BaseName() { \
 			} \
 		} \
 	} \
-	abort(); \
+	throw_error(); \
 } \
 void free##BaseName(ValueT* v) { \
 	resetBlock \

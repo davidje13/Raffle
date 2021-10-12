@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -16,7 +17,7 @@
 <title>Raffle Predictor</title>
 <script>
 
-window.addEventListener('load', () => {
+window.addEventListener('DOMContentLoaded', () => {
 	Raffle.set_engine(new SharedWebWorkerEngine({
 		workers: (navigator.hardwareConcurrency - 1) || 1,
 	}));

@@ -3,7 +3,7 @@
 
 #include "prob_map.h"
 #include "options.h"
-#include <stdlib.h>
+#include "imports.h"
 
 struct CumulativeProbMapElement {
 	double cp;
@@ -29,7 +29,7 @@ const struct CumulativeProbMap* extract_cumulative_probability(
 	iterateProbMap(pMap, iter, {
 		if (iter->value > pCutoff) {
 			if (count >= MAX_CP_ELEMENTS) {
-				abort();
+				throw_error();
 			}
 			totalP += iter->value;
 			sharedCPMap.data[count].p = iter->value;

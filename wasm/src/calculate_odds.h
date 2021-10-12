@@ -3,7 +3,7 @@
 
 #include "ln_factorial.h"
 #include "options.h"
-#include <stdlib.h>
+#include "imports.h"
 #include <math.h>
 
 struct PositionedList {
@@ -61,7 +61,7 @@ const struct PositionedList* calculate_odds_nopad(
 	long long B = targets + samples - total;
 
 	double cur = (
-		ln_factorial(total - samples) - ln_factorial(llabs(B))
+		ln_factorial(total - samples) - ln_factorial((B < 0) ? -B : B)
 		+ ln_factorial(total - targets) - ln_factorial(total)
 	);
 
@@ -85,7 +85,7 @@ const struct PositionedList* calculate_odds_nopad(
 	++ limit;
 
 	if (limit - begin > MAX_ODDS_BUCKETS) {
-		abort(); // not enough memory allocated
+		throw_error(); // not enough memory allocated
 	}
 
 	for (unsigned int n = begin; n < limit; ++ n) {
@@ -107,7 +107,7 @@ const struct PositionedList* calculate_odds(
 	unsigned int samples
 ) {
 	if (samples + 1 > MAX_ODDS_BUCKETS) {
-		abort();
+		throw_error();
 	}
 	calculate_odds_nopad(total, targets, samples);
 	if (sharedOdds.start) {

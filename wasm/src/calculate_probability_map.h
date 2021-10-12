@@ -7,6 +7,7 @@
 #include "memory.h"
 #include "prizes.h"
 #include "options.h"
+#include "imports.h"
 #include <math.h>
 
 static struct ProbMap* sharedTicketsProb[MAX_TICKETS + 1];
@@ -113,7 +114,7 @@ struct ProbMap* calculate_probability_map(
 	 */
 
 	if (tickets > MAX_TICKETS) {
-		abort();
+		throw_error();
 	}
 
 	// First dimension key = number of spent tickets so far
