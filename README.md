@@ -44,6 +44,8 @@ You can also install helpers (e.g. `wasm2wat`) with:
 
 ```sh
 brew install wabt
+# configure git diff for .wasm files:
+printf '[diff "wasm"]\n\ttextconv = wasm2wat\n' >> ~/.gitconfig
 ```
 
 To rebuild the WebAssembly files, run:
