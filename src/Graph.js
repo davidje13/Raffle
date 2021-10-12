@@ -463,7 +463,7 @@ const pick_grid = (() => {
 			this.fValuesX.textContent = '';
 			for(const x of gridX.major) {
 				const o = make('span', {}, [this.labelX.values(x)]);
-				o.style.left = this.coord_to_pt_x(x) / res;
+				o.style.left = `${this.coord_to_pt_x(x) / res}px`;
 				this.fValuesX.appendChild(o);
 			}
 
@@ -472,7 +472,7 @@ const pick_grid = (() => {
 			this.fValuesY.textContent = '';
 			for(const y of gridY.major) {
 				const o = make('span', {}, [this.labelY.values(y)]);
-				o.style.top = this.coord_to_pt_y(y) / res;
+				o.style.top = `${this.coord_to_pt_y(y) / res}px`;
 				this.fValuesY.appendChild(o);
 			}
 		}
