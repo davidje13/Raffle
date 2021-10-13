@@ -17,7 +17,7 @@
   ],
   "main": "Raffle",
   "scripts": {
-    "build": "mkdir -p wasm/dist && emcc -O3 wasm/src/main.c -o wasm/dist/main.wasm -s TOTAL_MEMORY=16MB -s ERROR_ON_UNDEFINED_SYMBOLS=0 --no-entry -mnontrapping-fptoint -Wall -Wextra --pedantic -Wshorten-64-to-32 -Wfloat-conversion -Wpadded -Wshadow -Wmissing-variable-declarations",
+    "build": "mkdir -p wasm/dist && emcc -O3 wasm/src/main.c -o wasm/dist/main.wasm -s INITIAL_MEMORY=11MB -s TOTAL_STACK=64kB -s ERROR_ON_UNDEFINED_SYMBOLS=0 --no-entry -mnontrapping-fptoint -Wall -Wextra --pedantic -Wshorten-64-to-32 -Wfloat-conversion -Wpadded -Wshadow -Wmissing-variable-declarations",
     "check": "npm run build && npm run lint && npm run test",
     "lint": "eslint . --ext .js --ignore-pattern '!.eslintrc.js'",
     "start": "static-server --index index.htm --port 8080",
